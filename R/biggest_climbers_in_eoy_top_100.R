@@ -2,6 +2,10 @@ library(tidyverse)
 library(lubridate)
 library(cjmr)
 library(patchwork)
+library(tidytext)
+
+source("R/tennis_helper_functions.R")
+
 
 # ******************************************************************************
 # import the data
@@ -270,9 +274,12 @@ start_t100_and_rise_ids <- start_t100_and_rise$player_id
 
 plus_20_risers <- atp_2021_rankings %>%
 
-  #filter(player_id %in% start_t100_and_rise_ids) %>%
-  #mutate(rise_more_than_20 = player_id %in% rise_more_than_20$player_id) %>%
-  filter(player_id %in% rise_more_than_20$player_id)
+  filter(player_id %in% rise_more_than_20$player_id) %>%
+  left_join(select(atp_players, player_id, name_first, name_last)) %>%
+  #mutate(name = str_c(name_first, name_last, sep = " ")) %>%
+  left_join(end_of_year_top_100) %>%
+  mutate(label_text = str_c("rose ", change_in_ranking, " places \n over 2021"))
+
 
 start_t100_and_rise_rank_hist <-  atp_2021_rankings %>%
 
@@ -280,13 +287,80 @@ start_t100_and_rise_rank_hist <-  atp_2021_rankings %>%
   rename(player_id_dummy = player_id)
 
 
+# work out order of facets
+ordered_facet_levels <- plus_20_risers %>%
+  select(name, change_in_ranking, `2021-11-22`) %>%
+  distinct() %>%
+  arrange(`2021-11-22`) %>%
+  .$name
+
+plus_20_risers$name <- factor(plus_20_risers$name,
+                              levels = ordered_facet_levels)
+
+# indentify key tournament successes for plotting
+#read in and tidy results csvs for 2021
+key_res <- get_res(2021, atp_path, "atp") %>%
+
+  tidy_tennis_df("atp") %>%
+  filter(player_id %in% rise_more_than_20$player_id) %>%
+
+  # identify tournament wins, finals and semi-finals
+  filter(result == "winner") %>%
+  select(player_id, name, tourney_date, round, tourney_name) %>%
+  arrange(name, tourney_date) %>%
+  mutate(result = case_when(
+    round == "F" ~ 1,
+    round == "SF" ~ 2,
+    round == "QF" ~ 3.5,
+    TRUE ~ -1
+  )) %>%
+  filter(result > 0) %>%
+  group_by(player_id, name, tourney_date, tourney_name) %>%
+  summarise(result = min(result)) %>%
+  ungroup() %>%
+  mutate(result_text = case_when(
+    result == 1 ~ "Winner",
+    result == 2 ~ "Finalist",
+    result == 3.5 ~ "Semi-finalist",
+    TRUE ~ "Other"
+  )) %>%
+
+  # add in ranking at time of result
+  left_join(start_t100_and_rise_rank_hist,
+            by = c("player_id" = "player_id_dummy",
+                   "tourney_date" = "ranking_date"))
+
+key_res$name <- factor(key_res$name,
+                              levels = ordered_facet_levels)
+
 ggplot(mapping = aes(ranking_date, rank)) +
-  geom_line(data = start_t100_and_rise_rank_hist, colour = "grey70", alpha = 0.2,
-            mapping = aes(group = player_id_dummy)) +
+
+  # background lines
+  # geom_line(data = start_t100_and_rise_rank_hist, colour = "grey80", alpha = 0.2,
+  #           mapping = aes(group = player_id_dummy)) +
+
+  # player of interest line
   geom_line(data = plus_20_risers, mapping = aes(group = player_id)) +
-  scale_y_reverse(breaks = c(1,20, 50,100), limits = c(120, 1)) +
+
+  # add start and end of year rankings
+  # geom_text(data = plus_20_risers,
+  #           mapping = aes(x = ymd("2021-06-01"), y = 100, label = change_in_ranking)) +
+  geom_text(data = plus_20_risers,
+            mapping = aes(x = ymd("2021-01-01"), y = 100, label = `2021-01-04`)) +
+  geom_text(data = plus_20_risers,
+            mapping = aes(x = ymd("2021-11-22"), y = 100, label = `2021-11-22`)) +
+
+  # add key tournament successes
+  geom_point(data = key_res,
+             mapping = aes(tourney_date, rank,
+                           colour = result_text),
+             size = 2) +
+
+  scale_y_reverse(breaks = c(1,10, 20, 50,100), limits = c(120, 1)) +
+  #scale_y_reverse(breaks = c(), limits = c(120, 1)) +
   theme_cjmr_explanatory() +
-  facet_wrap(~player_id, ncol = 5) +
+  theme(strip.background = element_blank()) +
+  facet_wrap(~name, ncol = 5) +
   labs(x = NULL)
 
 
