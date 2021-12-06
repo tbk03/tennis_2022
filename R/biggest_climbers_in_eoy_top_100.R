@@ -179,6 +179,8 @@ p1 <- ggplot(mapping = aes(date, ranking)) +
 
 p1
 
+ggsave("images/top_100_breakers.svg", units = "mm", width = 250, height = 110)
+
 p1_a <- ggplot(top_100_breakers, aes(change_in_ranking,
                              fill = emphasis_group,
                              colour = emphasis_group)) +
@@ -258,6 +260,7 @@ p1 + p2
 
 
 
+
 # ******************************************************************************
 # plot risers within the top 100
 # ******************************************************************************
@@ -333,37 +336,46 @@ key_res <- get_res(2021, atp_path, "atp") %>%
 key_res$name <- factor(key_res$name,
                               levels = ordered_facet_levels)
 
-ggplot(mapping = aes(ranking_date, rank)) +
+p3 <- ggplot(mapping = aes(ranking_date, rank)) +
 
   # background lines
   # geom_line(data = start_t100_and_rise_rank_hist, colour = "grey80", alpha = 0.2,
   #           mapping = aes(group = player_id_dummy)) +
 
   # player of interest line
-  geom_line(data = plus_20_risers, mapping = aes(group = player_id)) +
+  geom_line(data = plus_20_risers, mapping = aes(group = player_id),
+            size = 1, colour = "green") +
 
   # add start and end of year rankings
+  geom_text(data = plus_20_risers,
+            mapping = aes(x = ymd("2021-06-01"), y = 100, label = change_in_ranking)) +
   # geom_text(data = plus_20_risers,
-  #           mapping = aes(x = ymd("2021-06-01"), y = 100, label = change_in_ranking)) +
-  geom_text(data = plus_20_risers,
-            mapping = aes(x = ymd("2021-01-01"), y = 100, label = `2021-01-04`)) +
-  geom_text(data = plus_20_risers,
-            mapping = aes(x = ymd("2021-11-22"), y = 100, label = `2021-11-22`)) +
+  #           mapping = aes(x = ymd("2021-01-01"), y = 100, label = `2021-01-04`)) +
+  # geom_text(data = plus_20_risers,
+  #           mapping = aes(x = ymd("2021-11-22"), y = 100, label = `2021-11-22`)) +
 
   # add key tournament successes
   geom_point(data = key_res,
              mapping = aes(tourney_date, rank,
                            colour = result_text),
-             size = 2) +
+             size = 3) +
 
   scale_y_reverse(breaks = c(1,10, 20, 50,100), limits = c(120, 1)) +
+  scale_color_manual(values = c("#2F7ACA", "#61CDC9","#C33D50")) +
   #scale_y_reverse(breaks = c(), limits = c(120, 1)) +
   theme_cjmr_explanatory() +
-  theme(strip.background = element_blank()) +
+  theme(strip.background = element_blank(),
+        legend.position = "none") +
   facet_wrap(~name, ncol = 5) +
   labs(x = NULL)
 
+p3
 
+ggsave("images/top_100_climbers.svg", units = "mm", width = 250, height = 110)
+
+# write out key results for inpsection and to help annotated the plot
+
+write_csv(key_res, "data_out/big_wins.csv")
 
 # end_of_year_top_100 %>%
 #   mutate(climbers = change_in_ranking > 0,
