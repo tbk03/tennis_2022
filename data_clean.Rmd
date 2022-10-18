@@ -1,0 +1,60 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+
+## Read the data from github
+
+```{r}
+#' Get WTA or ATP tour match results from the Tennis Abstract github for the specified year (https://github.com/JeffSackmann)
+#'
+#' @param year an integer. The earliest years where there are data: wta 1920; atp 1968.
+#' @param tour a string either 'wta' or 'atp'
+#'
+#' @return a dataframe of match results 
+
+get_res <- function(year, tour){
+
+  # form file location string based on year and tour
+  repo_url <- glue::glue("https://raw.githubusercontent.com/JeffSackmann/tennis_{tour}/master/")
+  file_name <- glue::glue("{tour}_matches_{year}.csv")
+  file_location <- str_c(repo_url, file_name)
+  #browser()
+
+  # read in data from csv on github
+  res_year <- read_csv(file_location,
+                      
+                      # address issue with column type being read differently
+                      # in different files
+                      col_types = list(winner_seed = col_double(),
+                                         loser_seed = col_double(),
+                                       draw_size = col_double())) %>% 
+    
+    # make variable names consistent
+    janitor::clean_names() %>%
+
+    # add identifiers
+    mutate(tour = tour, 
+           year = year)
+
+  return(res_year)
+}
+
+
+start_year <- 1968
+end_year <-  2022
+
+seq(start_year, end_year) %>% 
+  map_df(~get_res(., "atp"))
+
+#read_csv("https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2022.csv")
+```
+
