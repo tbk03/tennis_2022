@@ -8,10 +8,22 @@ output:
 ```{r}
 library(tidyverse)
 ```
+For publishing on github: https://liuyanguu.github.io/post/2021/01/06/rmarkdown-to-github-pages/
 
+## intro
 
+- Question: has domination of tennis by players from the wealthiest countries reduced over the course of the open era (1968 onwards)
+- Definitions: 
+  - How well a country is doing: proportion of entrants to the first round of Grand Slams (both womens and mens single draw)
+  - wealthiest countries: 
 
-## Read the data from github
+## Tennis result data
+### Read the data from github
+
+key points
+- 2 tours in separate repos
+- For each tour each years match results are in a separate csv
+- objective: create a dataframe of results for from alls years for each tour
 
 ```{r}
 #' Get WTA or ATP tour match results from the Tennis Abstract github for the specified year (https://github.com/JeffSackmann)
@@ -48,13 +60,209 @@ get_res <- function(year, tour){
   return(res_year)
 }
 
+# ------------------------------------------------------------------------------
+# download results
+# ------------------------------------------------------------------------------
 
 start_year <- 1968
 end_year <-  2022
 
-seq(start_year, end_year) %>% 
+# aggregate atp results into a single dataframe
+atp_results <- seq(start_year, end_year) %>% 
   map_df(~get_res(., "atp"))
 
-#read_csv("https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2022.csv")
+# aggregate wta results into a single dataframe
+wta_results <- seq(start_year, end_year) %>% 
+  map_df(~get_res(., "wta"))
+
+
+
+```
+## Tidy the data
+
+Key points:
+- observations are matches
+- the players identified as values of the following variables `winner_id`, `winner_name`, `loser_id`, `loser_name`.
+- Single variables split across two columns (e.g. `winner_age` and `loser_age` actual a single variable `age`) `winner_ioc` and `loser_ioc`
+- Move to observations being a single player's match results
+
+```{r}
+#' Get observations relating to either match winners or losers from 
+#' tennis abstract match raw result data
+#'
+#' @param raw_results_df a dataframe of tennis abstract match result raw data
+#' @param result specifies whether `winner` or `loser`data should be returned
+#'
+#' @return a dataframe of match data for either winners or losers
+
+get_data_by_result <- function(raw_results_df, result){
+  
+  res_to_retain <- result
+  
+  if(res_to_retain == "winner"){
+    res_to_retain_suffix <- "w_"
+    res_to_drop <- "loser"
+    res_to_drop_suffix <- "l_"
+  }
+  
+  else if (res_to_retain == "loser"){
+    res_to_retain_suffix <- "l_"
+    res_to_drop <- "winner"
+    res_to_drop_suffix <- "w_"
+  }
+  
+  # tidy up data for match losers
+  raw_results_df %>%
+
+    # drop columns containing match stats of the winner
+    select(-c(starts_with(res_to_drop), starts_with(res_to_drop_suffix))) %>%
+
+    # simplify column naming to enable row binding of winners and losers
+    rename_with(.fn = ~str_replace( .x, str_c(res_to_retain, "_"), ""),
+                .cols = starts_with(res_to_retain)) %>%
+    rename_with(.fn = ~str_replace( .x, res_to_retain_suffix, ""),
+                .cols = starts_with(res_to_retain_suffix)) %>%
+
+    # add result column and match_id
+    mutate(result = res_to_retain,
+           match_id = 1:n(),
+           match_id_str = str_c(match_id, tour, year, sep = "_"),
+           .after = name)
+  
+}
+
+
+#' Puts tennis abstract match raw result data in a tidy form
+#'
+#' @param raw_results_df a dataframe of tennis abstract match result raw data
+#'
+#' @return a tidy dataframe of tennis abstract match results data
+
+tidy_match_results <- function(raw_results_df){
+  
+  losers <- get_data_by_result(raw_results_df, "loser")
+  winners <- get_data_by_result(raw_results_df, "winner")
+  
+  results_tidy <- 
+    
+    # recombine data on winning and losing players
+    bind_rows(losers, winners) %>% 
+    
+    # order for readability
+    arrange(year, tour, match_id) %>% 
+    
+    # convert variable types where needed
+    mutate(tourney_date = lubridate::ymd(tourney_date))
+  
+  return(results_tidy)
+}
+
+# ------------------------------------------------------------------------------
+# tidy results
+# ------------------------------------------------------------------------------
+
+atp_results_tidy <- tidy_match_results(atp_results)
+wta_results_tidy <- tidy_match_results(wta_results)
+
+# create single dataframe with results from both tours
+all_results_tidy <- bind_rows(
+  atp_results_tidy, wta_results_tidy
+)
+
+```
+
+### Focus on relevant data
+
+```{r}
+
+results_focused <- all_results_tidy %>% 
+  
+  # focus on entrants to grand slam tournaments
+  filter(tourney_level == "G") %>% 
+  
+  # focus on variables of interest
+  select(year, tourney_name, tour, name, id, ioc) %>% 
+  
+  # remove duplicates where players have appeared in multiple rounds 
+  unique()
+
+results_focused
+
+```
+
+### Check completeness of data
+
+- I had assumed there had always been 128 plays in each singles draw (so a total of 256)
+
+```{r}
+results_focused %>% 
+  count(year, tourney_name) %>% 
+  filter(n != 256)
+```
+
+
+## GDP data
+
+### Read in, tidy and focus data
+
+**Source:** [Our World in Data](https://ourworldindata.org/grapher/gdp-world-regions-stacked-area?country=Sub-Sahara+Africa~Latin+America~Middle+East~South+and+South-East+Asia~East+Asia~Western+Offshoots~Eastern+Europe~Western+Europe)
+
+```{r}
+gdp_focus <- read_csv("data/gdp-world-regions-stacked-area.csv") %>% 
+  
+  # make variable names consistent
+  janitor::clean_names() %>% 
+  
+  # column not needed
+  select(-x417484_annotations) %>% 
+  
+  # focus on years of interest
+  filter(year >= start_year) %>% 
+  
+  # make the dataframe easier to read
+  rename(country = entity,
+         country_code = code)
+
+# remove entities which are not countries (e.g. regions or continents)
+# i.e. those which do not have country codes
+non_country_entities <- gdp_focus %>% 
+  filter(is.na(country_code)) %>% 
+  distinct(country) %>% 
+  .$country
+
+gdp_focus <- gdp_focus %>% 
+  filter(!country %in% non_country_entities) %>% 
+  filter(country != "World")
+  
+gdp_focus
+```
+### Check completeness of data
+
+look for 
+
+```{r}
+# -----------------------------------------------------------------------------
+# explore explicitly missing data
+# -----------------------------------------------------------------------------
+visdat::vis_miss(gdp_focus) +
+  labs(title = "No explicitly missing data")
+
+# -----------------------------------------------------------------------------
+# explore implicitly missing data
+# -----------------------------------------------------------------------------
+
+# create a dataframe with all combinations of year and country
+gdp_focus_exp_grid <-  expand_grid(country = unique(gdp_focus$country),
+            year = unique(gdp_focus$year)) %>%
+  
+  # add in gdp data where available
+  left_join(gdp_focus)
+
+# show implicitly missing data
+gdp_focus_exp_grid %>% 
+  filter(is.na(gdp))
+
+visdat::vis_miss(gdp_focus_exp_grid) +
+  labs(title = "But there is implicitly missing data")
 ```
 

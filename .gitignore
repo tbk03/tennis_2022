@@ -1,3 +1,5 @@
+# local datasets
+/data/*
 
 # notebook html files
 *.nb.html
