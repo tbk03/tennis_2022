@@ -7,6 +7,16 @@ output:
 
 ```{r}
 library(tidyverse)
+
+# ------------------------------------------------------------------------------
+# set up for plotting
+# ------------------------------------------------------------------------------
+
+theme_set(theme_minimal())
+
+# colour palette
+highlight_colour <-  "#35469D"
+
 ```
 For publishing on github: https://liuyanguu.github.io/post/2021/01/06/rmarkdown-to-github-pages/
 
@@ -192,12 +202,33 @@ results_focused
 
 ### Check completeness of data
 
-- I had assumed there had always been 128 plays in each singles draw (so a total of 256)
+- I had assumed there had always been 128 plays in each singles draw (so a total of 256 players at each Grandslam)
+- Looking smaller draw size before 1989. Checking historical records of tournament draw I could see that some did have mens or womens draws with less than 128 entrants.
+- Rather than manually check all thesizes of all the smaller draws are correct, I decided to refine the scope of the analysis to look at Grand Slam tournaments from 1990 onwards (where there is no missing data)
+- also identified and issue with tournament names being different for the US Open Men's and Women's Singles in 2019. String matching issue
 
 ```{r}
+# look for missing data in post 1968 results
 results_focused %>% 
   count(year, tourney_name) %>% 
   filter(n != 256)
+
+# focus on Grand Slams from 1990 onwards
+results_clean <- results_focused %>% 
+  filter(year >= 1990) %>% 
+  mutate(tourney_name = replace(tourney_name, 
+                                tourney_name == "Us Open",
+                                "US Open"))
+
+# confirm there is no missing data for Grand Slams 1990 onwards
+num_missing <- results_clean %>% 
+  count(year, tourney_name) %>% 
+  filter(n != 256) %>% 
+  nrow()
+
+assertthat::assert_that(num_missing == 0)
+
+
 ```
 
 
@@ -205,23 +236,21 @@ results_focused %>%
 
 ### Read in, tidy and focus data
 
-**Source:** [Our World in Data](https://ourworldindata.org/grapher/gdp-world-regions-stacked-area?country=Sub-Sahara+Africa~Latin+America~Middle+East~South+and+South-East+Asia~East+Asia~Western+Offshoots~Eastern+Europe~Western+Europe)
+**Source:** [Our World in Data](https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart)
 
 ```{r}
-gdp_focus <- read_csv("data/gdp-world-regions-stacked-area.csv") %>% 
+gdp_focus <- read_csv("data/gdp-per-capita-worldbank.csv") %>% 
   
   # make variable names consistent
   janitor::clean_names() %>% 
   
-  # column not needed
-  select(-x417484_annotations) %>% 
+  # rename variables to make them easier to work with 
+  rename(gdp_per_capita = gdp_per_capita_ppp_constant_2017_international,
+         country = entity,
+         country_code = code) %>% 
   
-  # focus on years of interest
-  filter(year >= start_year) %>% 
-  
-  # make the dataframe easier to read
-  rename(country = entity,
-         country_code = code)
+  # focus on 1990 onwards in line with Grand Slam entrant data
+  filter(year >= 1990)
 
 # remove entities which are not countries (e.g. regions or continents)
 # i.e. those which do not have country codes
@@ -234,11 +263,12 @@ gdp_focus <- gdp_focus %>%
   filter(!country %in% non_country_entities) %>% 
   filter(country != "World")
   
-gdp_focus
+  
 ```
 ### Check completeness of data
 
-look for 
+look for explicitly missing data
+and implicitly missing data
 
 ```{r}
 # -----------------------------------------------------------------------------
@@ -259,10 +289,80 @@ gdp_focus_exp_grid <-  expand_grid(country = unique(gdp_focus$country),
   left_join(gdp_focus)
 
 # show implicitly missing data
-gdp_focus_exp_grid %>% 
-  filter(is.na(gdp))
+gdp_missing <- gdp_focus_exp_grid %>% 
+  filter(is.na(gdp_per_capita))
+gdp_missing
 
 visdat::vis_miss(gdp_focus_exp_grid) +
   labs(title = "But there is implicitly missing data")
+
+```
+### exploring and imputing missing data
+
+- where data is missing, in most cases it is missing for a number of years starting at 1990 and then followed by complete data up until 2020. Based on visual inspection of the dataframe and plot (few lines with breaks in the middle) below.
+
+```{r}
+# look at countries with missing data
+gdp_missing %>% 
+  count(country)
+
+countries_gdp_missing <- unique(gdp_missing$country)
+
+# look at where the missing data is in each country's time series
+gdp_missing %>% 
+  arrange(country, year)
+
+p <- gdp_focus_exp_grid %>% 
+  
+  # only need to plot countries with missing data
+  filter(country %in% countries_gdp_missing) %>% 
+  
+  # create the plot
+  ggplot(aes(year, gdp_per_capita, group = country)) +
+    geom_line(alpha = 0.8, colour = highlight_colour)
+
+# make interactive with tooltips for data exploration
+plotly::ggplotly(p)
+  
+```
+
+Given the pattern of the missing data get strange behavior trying to use an interpolate
+
+```{r}
+library(zoo)
+
+strange_interpolation <- c("Kosovo", "Cayman Islands", "Iceland")
+
+p <- gdp_focus_exp_grid %>% 
+  mutate(
+    gdp_per_capita = zoo::na.approx(gdp_per_capita),
+    highlight = country %in% strange_interpolation) %>% 
+  # only need to plot countries with missing data
+  filter(country %in% countries_gdp_missing) %>% 
+  
+  # create the plot
+  ggplot(aes(year, gdp_per_capita, 
+             group = country, 
+             colour = highlight)) +
+    geom_line(alpha = 0.8) +
+  scale_colour_manual(values = c("#C7C2C4", highlight_colour)) +
+  theme(legend.position = "none")
+
+# make interactive with tooltips for data exploration
+plotly::ggplotly(p)
+```
+So use a simple manual approach. First 
+
+```{r}
+
+```
+
+
+
+## Join the two datasets
+```{r}
+results_clean %>% 
+  rename(country_code = ioc) %>% 
+  left_join(gdp_clean)
 ```
 
