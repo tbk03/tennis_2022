@@ -191,7 +191,8 @@ results_focused <- all_results_tidy %>%
   filter(tourney_level == "G") %>% 
   
   # focus on variables of interest
-  select(year, tourney_name, tour, name, id, ioc) %>% 
+  select(year, tourney_name, tour, name, id, 
+         country_code = ioc) %>% 
   
   # remove duplicates where players have appeared in multiple rounds 
   unique()
@@ -326,7 +327,7 @@ plotly::ggplotly(p)
   
 ```
 
-Given the pattern of the missing data get strange behavior trying to use an interpolate
+Given the pattern of the missing data get strange behavior trying to use an interpolation function
 
 ```{r}
 library(zoo)
@@ -351,9 +352,60 @@ p <- gdp_focus_exp_grid %>%
 # make interactive with tooltips for data exploration
 plotly::ggplotly(p)
 ```
-So use a simple manual approach. First 
+So use a simple method, based on the pattern of missing data
 
 ```{r}
+# -----------------------------------------------------------------------------
+# find the earliest record of gdp_per_capita for each country
+# -----------------------------------------------------------------------------
+
+earliest_gdp <- gdp_focus_exp_grid %>% 
+  
+  # focus on relevant observations
+  filter(!is.na(gdp_per_capita),
+         country %in% countries_gdp_missing) %>% 
+  
+  # identify earliest year with gdp_per_cap observation
+  group_by(country) %>% 
+  mutate(min_year = min(year)) %>% 
+  ungroup() %>% 
+  
+  # focus only on each countries earliest year with gdp_per_cap observation
+  filter(year == min_year) %>% 
+  
+  # retain only the columns needed to simplify the join below
+  select(earliest_gdp_per_capita = gdp_per_capita,
+         country_code,
+         country)
+
+# -----------------------------------------------------------------------------
+# for each country replace missing gdp_per_capita data with earliest 
+# gdp_per_cap observation
+# -----------------------------------------------------------------------------
+
+gdp_clean <- gdp_focus_exp_grid %>% 
+  
+  left_join(earliest_gdp, by = c("country" = "country")) %>% 
+  
+  # replace nas
+  mutate(gdp_per_capita = 
+           if_else(
+              is.na(gdp_per_capita), 
+              earliest_gdp_per_capita, 
+              gdp_per_capita
+              ),
+    
+         country_code =
+           if_else(
+              is.na(country_code.x),
+              country_code.y, 
+              country_code.x
+              )
+    ) %>% 
+  
+  # tidy up dataframe
+  arrange(country,year) %>% 
+  select(-c(country_code.x, country_code.y, earliest_gdp_per_capita))
 
 ```
 
@@ -361,8 +413,105 @@ So use a simple manual approach. First
 
 ## Join the two datasets
 ```{r}
-results_clean %>% 
-  rename(country_code = ioc) %>% 
-  left_join(gdp_clean)
+#library(fuzzyjoin)
+
+join_performance <- function(df1, df2, join_func, ...){
+  join_exact_match <- df1 %>%
+    
+    join_func(df2, ...)
+  
+  
+  num_join_miss <- join_exact_match %>% 
+    filter(is.na(gdp_per_capita)) %>% 
+    distinct(country_code) %>% 
+    nrow()
+  
+  num_join_hit <- join_exact_match %>% 
+    filter(!is.na(gdp_per_capita)) %>% 
+    distinct(country_code) %>% 
+    nrow()
+  
+  print("\n")
+  
+  c(hit = num_join_hit, miss = num_join_miss)
+}
+
+#-------------------------------------------------------------------------------
+# prepare the two data frames for joining
+#-------------------------------------------------------------------------------
+# gdp data only goes up to 2020, so remove 2021 and 2022 match data
+results_clean <- filter(results_clean, year <= 2020) %>% 
+  # remove any white space ahead of using to join with gdp data
+  mutate(country_code = str_trim(country_code, side = "both"))
+
+# remove any white space ahead of using to join with tennis data
+gdp_clean <- gdp_clean %>% 
+  mutate(country_code = str_trim(country_code, side = "both"))
+  
+#-------------------------------------------------------------------------------
+# look at initial join performance
+#-------------------------------------------------------------------------------
+join_performance(results_clean, 
+  gdp_clean,left_join)
+# #join_performance(stringdist_join, by = c("year", "country_code"))
+# 
+# stringdist_join(results_clean, gdp_clean, 
+#                 by = c("year", "country_code"),
+#                 mode='left', #use left join
+#                 method = "jw", #use jw distance metric
+#                 max_dist=1)
+```
+```{r}
+library(rvest)
+#-------------------------------------------------------------------------------
+# web scrape a look up table for mapping between iso country codes (gdp data)
+# and ioc codes (tennis data)
+#-------------------------------------------------------------------------------
+
+lookup_raw <- read_html("https://simple.wikipedia.org/wiki/Comparison_of_IOC,_FIFA,_and_ISO_3166_country_codes") %>% 
+  html_nodes(xpath="/html/body/div[3]/div[3]/div[5]/div[1]/table[1]") %>% 
+  html_table() %>% 
+  pluck(1)
+
+iso_ioc_lookup <- lookup_raw %>%
+  janitor::clean_names() %>% 
+  select(ioc, iso)
+
+#-------------------------------------------------------------------------------
+# replace iso country codes in gdp data with ioc codes (as used in tennis data)
+#-------------------------------------------------------------------------------
+
+gdp_clean_ioc <- gdp_clean %>% 
+  left_join(iso_ioc_lookup,
+            by = c("country_code" = "iso"))
+
+# just one country without an ioc code so ignore
+gdp_clean_ioc %>% 
+  filter(is.na(ioc))
+
+gdp_clean_ioc <- gdp_clean_ioc %>% 
+  mutate(country_code = ioc) %>% 
+  select(-ioc)
+
+#-------------------------------------------------------------------------------
+# check if join performance has improved
+#-------------------------------------------------------------------------------
+
+join_performance(results_clean,
+                 gdp_clean_ioc,left_join)
+
+# look at players/countries where no match to gdp data
+
+no_match <- results_clean %>% 
+  left_join(gdp_clean_ioc) %>% 
+  filter(is.na(gdp_per_capita)) 
+
+no_match %>% 
+  distinct(year, name, country_code)
+
+no_match %>% 
+  distinct(country_code)
+
+unique(gdp_clean_ioc$country_code)
 ```
 
