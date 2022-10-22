@@ -570,6 +570,94 @@ join_performance(results_clean,
 results_gdp <- left_join(results_clean, gdp_clean_ioc)
 
 results_gdp %>% 
+  relocate(gdp_per_capita, country) %>% 
   visdat::vis_miss()
+```
+
+```{r}
+num_gs_entrants <- results_gdp %>% 
+  group_by(year, country) %>% 
+  mutate(num_first_rd = n()) %>% 
+  ungroup() %>% 
+  select(-c(id, name, tour, tourney_name)) %>% 
+  distinct() %>% 
+  arrange(year, desc(num_first_rd))
+
+num_gs_entrants
+
+# num of countries represented in first round of grand slam singles
+num_countries <- num_gs_entrants %>% 
+  count(year) %>% 
+  rename(num_countries_represented = n)
+
+ggplot(num_countries, aes(year, num_countries_represented)) +
+  geom_col()
+
+p <- ggplot(num_gs_entrants, aes(year, num_first_rd, group = country)) +
+  geom_line(alpha = 0.5)
+
+plotly::ggplotly(p)
+```
+
+```{r}
+income_deciles <- gdp_clean_ioc %>% 
+  group_by(year) %>% 
+  mutate(income_decile = ntile(gdp_per_capita, 10)) %>% 
+  ungroup() %>% 
+  select(-c(country, gdp_per_capita))
+
+
+
+num_gs_entrants_inc_dec <- num_gs_entrants %>% 
+  left_join(income_deciles) 
+
+# num_gs_entrants_inc_dec <- num_gs_entrants_inc_dec%>% 
+#   mutate(top_10_perc = income_decile == 10,
+#          top_20_perc = income_decile >= 9)
+
+
+# add_decile_dummy_var <- function(decile){
+#   
+#   top_n_perc <- (10 - decile + 1) * 10
+#   var_str <- glue::glue("top_{top_n_perc}_perc")
+#   
+#   num_gs_entrants_inc_dec %>%
+#     mutate("{{var_str}}" := income_decile == decile) #%>% 
+#     # select(!!sym(var_str))
+# 
+# }
+# 
+# 
+# 
+# seq(10,1) %>% 
+#  map_df(~add_decile_dummy_var(.))
+
+add_decile_dummy_var <- function(df, decile){
+
+  top_n_perc <- (10 - decile + 1) * 10
+  var_str <- str_c("top_", top_n_perc, "_perc")
+
+  df[, var_str] <- 
+    df$income_decile >= decile
+  
+  df
+
+}
+
+add_decile_dummy_var(num_gs_entrants_inc_dec, 4)
+
+
+
+num_gs_entrants_inc_dec %>%
+  na.omit() %>% 
+  group_by(year, top_20_perc) %>% 
+  summarise(num_first_rd = sum(num_first_rd)) %>% 
+  ungroup() %>% 
+  group_by(year) %>% 
+  mutate(perc_first_rd = num_first_rd / sum(num_first_rd) * 100) %>% 
+  
+  ggplot(aes(year, perc_first_rd, fill = top_20_perc)) +
+    geom_area()
+
 ```
 
