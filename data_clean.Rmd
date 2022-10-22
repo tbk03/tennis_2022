@@ -514,4 +514,62 @@ no_match %>%
 
 unique(gdp_clean_ioc$country_code)
 ```
+```{r}
+# -----------------------------------------------------------------------------
+# Identify predecessor countries and check for the names of countries with 
+# no gdp data
+# -----------------------------------------------------------------------------
+# set up string for searching within country names
+country_check <- c("ven" = c("venezuela"),
+                   "yug" = c("yugoslavia"),
+                   "cub" = c("cuba"),
+                   "mon" = c("monaco"),
+                   "tpe" = c("taiwan"),
+                   "tch" = c("czechoslovakia", "cz"),
+                   "urs" = c("soviet union", "ussr", "russia"),
+                   "scg" = c("serbia", "montenegro"),
+                   "lie" = c("liechtenstein", "liech", "germany"))
+
+# combine country search strings into a single regular expression
+# | is OR
+country_check_str <- str_c(country_check, collapse = "|")
+
+# search strings found in the following countries present in the dataset 
+matches_found <- gdp_clean_ioc %>% 
+  mutate(country_check = str_detect(str_to_lower(country), country_check_str)) %>% 
+  filter(country_check) %>% 
+  distinct(country, country_code)
+matches_found
+
+# -----------------------------------------------------------------------------
+# Where possible find a country that approximately matches for countries with 
+# no gdp data
+# -----------------------------------------------------------------------------
+country_code_replacement_lookup <- matches_found %>% 
+  mutate(code_to_replace = c("TCH", "LIE", NA, "URS", "SCG" )) %>% 
+  rename(replacement_code = country_code) %>% 
+  select(-country) %>% 
+  filter(!is.na(code_to_replace)) 
+
+results_clean <- results_clean %>% 
+  left_join(country_code_replacement_lookup, 
+            by = c("country_code" = "code_to_replace")) %>% 
+  mutate(country_code = if_else(!is.na(replacement_code),
+                                replacement_code, 
+                                country_code)) %>% 
+  select(-replacement_code)
+
+#-------------------------------------------------------------------------------
+# check if join performance has improved
+#-------------------------------------------------------------------------------
+
+join_performance(results_clean,
+                 gdp_clean_ioc,left_join)
+
+# good enough
+results_gdp <- left_join(results_clean, gdp_clean_ioc)
+
+results_gdp %>% 
+  visdat::vis_miss()
+```
 
