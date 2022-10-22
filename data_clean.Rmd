@@ -611,26 +611,6 @@ income_deciles <- gdp_clean_ioc %>%
 num_gs_entrants_inc_dec <- num_gs_entrants %>% 
   left_join(income_deciles) 
 
-# num_gs_entrants_inc_dec <- num_gs_entrants_inc_dec%>% 
-#   mutate(top_10_perc = income_decile == 10,
-#          top_20_perc = income_decile >= 9)
-
-
-# add_decile_dummy_var <- function(decile){
-#   
-#   top_n_perc <- (10 - decile + 1) * 10
-#   var_str <- glue::glue("top_{top_n_perc}_perc")
-#   
-#   num_gs_entrants_inc_dec %>%
-#     mutate("{{var_str}}" := income_decile == decile) #%>% 
-#     # select(!!sym(var_str))
-# 
-# }
-# 
-# 
-# 
-# seq(10,1) %>% 
-#  map_df(~add_decile_dummy_var(.))
 
 add_decile_dummy_var <- function(df, decile){
 
@@ -640,24 +620,24 @@ add_decile_dummy_var <- function(df, decile){
   df[, var_str] <- 
     df$income_decile >= decile
   
-  df
+  df %>%
+    na.omit() %>%
+    group_by(year, !!sym(var_str)) %>%
+    summarise(num_first_rd = sum(num_first_rd)) %>%
+    ungroup() %>%
+    group_by(year) %>%
+    mutate(perc_first_rd = num_first_rd / sum(num_first_rd) * 100) %>%
+  
+    ggplot(aes(year, perc_first_rd, fill = !!sym(var_str))) +
+      geom_area() +
+      scale_fill_manual(values = c("#A7BCD6", "#374E83"))
 
 }
 
-add_decile_dummy_var(num_gs_entrants_inc_dec, 4)
+seq(10,1) %>% 
+#c(10) %>% 
+  map(~add_decile_dummy_var(num_gs_entrants_inc_dec, .))
 
-
-
-num_gs_entrants_inc_dec %>%
-  na.omit() %>% 
-  group_by(year, top_20_perc) %>% 
-  summarise(num_first_rd = sum(num_first_rd)) %>% 
-  ungroup() %>% 
-  group_by(year) %>% 
-  mutate(perc_first_rd = num_first_rd / sum(num_first_rd) * 100) %>% 
-  
-  ggplot(aes(year, perc_first_rd, fill = top_20_perc)) +
-    geom_area()
 
 ```
 
