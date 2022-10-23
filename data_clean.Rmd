@@ -6,7 +6,8 @@ output:
 ---
 
 ```{r}
-library(tidyverse)
+library(tidyverse)  # for data manipulation and plotting
+library(rvest)      # for webscraping
 
 # ------------------------------------------------------------------------------
 # set up for plotting
@@ -413,27 +414,39 @@ gdp_clean <- gdp_focus_exp_grid %>%
 
 ## Join the two datasets
 ```{r}
-#library(fuzzyjoin)
+
+#' Quickly check how well two dataframes join
+#'
+#' @param df1 the dataframe passed as the first argument to the 
+#' @param df2 
+#' @param join_func the specific join function to be applied (e.g. left_join)
+#' @param ... other parameters to be passed to the join function
+#' 
+#' @return a vector including the number of observations which are of join successes and failures
 
 join_performance <- function(df1, df2, join_func, ...){
-  join_exact_match <- df1 %>%
-    
+  
+  # perform the join
+  join <- df1 %>%
     join_func(df2, ...)
   
-  
-  num_join_miss <- join_exact_match %>% 
+  # the number of observations which are of join failures
+  num_join_miss <- join %>% 
     filter(is.na(gdp_per_capita)) %>% 
     distinct(country_code) %>% 
     nrow()
   
-  num_join_hit <- join_exact_match %>% 
+  # the number of observations which are of join successes
+  num_join_hit <- join %>% 
     filter(!is.na(gdp_per_capita)) %>% 
     distinct(country_code) %>% 
     nrow()
   
+  # just for output formatting
   print("\n")
   
-  c(hit = num_join_hit, miss = num_join_miss)
+  # return the number of observations which are of join successes and failures
+  c("join_sucesses" = num_join_hit, "join_failures" = num_join_miss)
 }
 
 #-------------------------------------------------------------------------------
@@ -453,16 +466,9 @@ gdp_clean <- gdp_clean %>%
 #-------------------------------------------------------------------------------
 join_performance(results_clean, 
   gdp_clean,left_join)
-# #join_performance(stringdist_join, by = c("year", "country_code"))
-# 
-# stringdist_join(results_clean, gdp_clean, 
-#                 by = c("year", "country_code"),
-#                 mode='left', #use left join
-#                 method = "jw", #use jw distance metric
-#                 max_dist=1)
+
 ```
 ```{r}
-library(rvest)
 #-------------------------------------------------------------------------------
 # web scrape a look up table for mapping between iso country codes (gdp data)
 # and ioc codes (tennis data)
@@ -575,6 +581,10 @@ results_gdp %>%
 ```
 
 ```{r}
+# -----------------------------------------------------------------------------
+# calculate number of first round grand slam entrants for each country each
+# year
+# -----------------------------------------------------------------------------
 num_gs_entrants <- results_gdp %>% 
   group_by(year, country) %>% 
   mutate(num_first_rd = n()) %>% 
@@ -590,53 +600,96 @@ num_countries <- num_gs_entrants %>%
   count(year) %>% 
   rename(num_countries_represented = n)
 
+# -----------------------------------------------------------------------------
+# create exploratory plots
+# -----------------------------------------------------------------------------
+
 ggplot(num_countries, aes(year, num_countries_represented)) +
   geom_col()
 
 p <- ggplot(num_gs_entrants, aes(year, num_first_rd, group = country)) +
   geom_line(alpha = 0.5)
 
-plotly::ggplotly(p)
+plotly::ggplotly(p) # make interactive to explore which line is which country
 ```
 
 ```{r}
+# calculated country income deciles for each country
+# use gdp data (all countries) rather than tennis data (subset of countries)
 income_deciles <- gdp_clean_ioc %>% 
   group_by(year) %>% 
   mutate(income_decile = ntile(gdp_per_capita, 10)) %>% 
   ungroup() %>% 
   select(-c(country, gdp_per_capita))
 
-
-
+# add the newly calculated deciles into the tennis/gdp dataframe
 num_gs_entrants_inc_dec <- num_gs_entrants %>% 
   left_join(income_deciles) 
 
+#' Plot the percentage of Grand Slam First Round appearances made by players 
+#' from countries in the top n percentage of highest income
+#'
+#' @param df a dataframe containing the grand slam first round appearance data
+#' @param decile integer between 1 and 10
 
-add_decile_dummy_var <- function(df, decile){
+plot_top_n_perc <- function(df, decile){
 
+  # create a variable names and plot title based on the decile chosen
   top_n_perc <- (10 - decile + 1) * 10
   var_str <- str_c("top_", top_n_perc, "_perc")
+  plot_title <- str_c("The top ", top_n_perc, "% highest income countries\n")
 
+  # test if each observation is for specified decile or a higher decile
   df[, var_str] <- 
     df$income_decile >= decile
   
-  df %>%
+  # calculate number of first round appearance for top n % of countries
+  df_plot <- df %>%
+    
     na.omit() %>%
+    
     group_by(year, !!sym(var_str)) %>%
     summarise(num_first_rd = sum(num_first_rd)) %>%
     ungroup() %>%
+    
     group_by(year) %>%
-    mutate(perc_first_rd = num_first_rd / sum(num_first_rd) * 100) %>%
+    mutate(perc_first_rd = num_first_rd / sum(num_first_rd) * 100) %>% 
+    ungroup() %>% 
+    filter(!!sym(var_str))
   
-    ggplot(aes(year, perc_first_rd, fill = !!sym(var_str))) +
-      geom_area() +
-      scale_fill_manual(values = c("#A7BCD6", "#374E83"))
+  # create the plot itself
+  df_plot %>%
+    ggplot(aes(year, perc_first_rd)) +
+      geom_line(colour = "#374E83") +
+      
+      # tidy up labelling of the plot
+      labs(x = NULL, y = NULL,
+           
+           # put y axis label at the top of the y axis
+           subtitle = "Percentage of first round\nGrand Slam appearances\n",
+           
+           # identify the top n % for the plot
+           title = plot_title) +
+      
+      # tidy up axis
+      scale_y_continuous(labels = scales::label_percent(scale = 1),
+                         limits = c(0,100)) +
+      scale_x_continuous(breaks = seq(1990, 2020, 5)) +
+      coord_cartesian(expand = FALSE, clip = "off") +
+      
+      # tidy positioning of text and gridlines
+      theme(panel.grid.minor.x = element_blank(),
+            plot.title.position = "plot",
+            plot.margin = margin(t = 20, r = 30, b = 20, l = 20, unit = "pt"))
 
 }
 
+#-------------------------------------------------------------------------------
+# create exploratory plots for the top n percent of highest income countries
+#-------------------------------------------------------------------------------
+
 seq(10,1) %>% 
-#c(10) %>% 
-  map(~add_decile_dummy_var(num_gs_entrants_inc_dec, .))
+  map(~plot_top_n_perc(num_gs_entrants_inc_dec, .))
 
 
 ```
