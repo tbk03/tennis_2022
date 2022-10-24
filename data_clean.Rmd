@@ -694,3 +694,106 @@ seq(10,1) %>%
 
 ```
 
+```{r}
+# -----------------------------------------------------------------------------
+# calculate number of first round entrants for each grand slam for each country 
+# each year
+# -----------------------------------------------------------------------------
+num_gs_tourney_entrants <- results_gdp %>% 
+  
+  group_by(year, tourney_name, country) %>% 
+  mutate(num_first_rd = n()) %>% 
+  ungroup() %>%
+  
+  select(-c(id, name, tour)) %>% 
+  distinct() %>% 
+  arrange(year, tourney_name, desc(num_first_rd)) %>% 
+  
+  # add income deciles
+  left_join(income_deciles) %>% 
+  
+  # test if observation relates to a top 20% income country
+  mutate(top_20_perc = income_decile >= 9)
+
+num_gs_tourney_entrants
+
+# -----------------------------------------------------------------------------
+# create main data layer for the plot
+# -----------------------------------------------------------------------------
+
+# calculate number of first round appearance for top n % of countries
+df_plot <- num_gs_tourney_entrants %>%
+    
+    na.omit() %>%
+    
+    group_by(year, tourney_name, top_20_perc) %>%
+    summarise(num_first_rd = sum(num_first_rd)) %>%
+    ungroup() %>%
+    
+    group_by(year, tourney_name) %>%
+    mutate(perc_first_rd = num_first_rd / sum(num_first_rd) * 100) %>% 
+    ungroup() %>% 
+    filter(top_20_perc)
+
+# -----------------------------------------------------------------------------
+# create additional data layers for the plot
+# -----------------------------------------------------------------------------
+annotation_layer <- df_plot %>% 
+  group_by(tourney_name) %>% 
+  mutate(min_perc_first_rd = min(perc_first_rd),
+         min_year = min(year),
+         max_year = max(year)) %>% 
+  ungroup() %>% 
+  
+  filter(min_perc_first_rd == perc_first_rd |
+          year == min_year |
+           year == max_year)
+
+# -----------------------------------------------------------------------------
+# create the plot itself
+# -----------------------------------------------------------------------------
+p <- df_plot %>%
+    ggplot(aes(year, 
+               perc_first_rd,
+               colour = tourney_name)) +
+      geom_line() +
+      geom_point(data = annotation_layer) + 
+      ggrepel::geom_text_repel(data = annotation_layer,
+                                mapping = aes(label = round(perc_first_rd))) +
+      
+      # tidy up labelling of the plot
+      labs(x = NULL, y = NULL,
+           
+           # put y axis label at the top of the y axis
+           subtitle = "Percentage of first round\nGrand Slam appearances\n",
+           
+           # identify the top n % for the plot
+           title = "plot_title") +
+  
+      scale_colour_manual(values = c("#6A8EAF", "#D97A53", 
+                                     "#35469D", "#216E4B")) +
+      
+      # tidy up axis
+      scale_y_continuous(labels = scales::label_percent(scale = 1),
+                         limits = c(50,100)) +
+      scale_x_continuous(breaks = seq(1990, 2020, 5)) +
+      coord_cartesian(expand = FALSE, clip = "off") +
+      
+      # tidy positioning of text and gridlines
+      theme(panel.grid.minor = element_blank(),
+            panel.spacing.x = unit(2, "cm"),
+            panel.spacing.y = unit(1, "cm"),
+            plot.title.position = "plot",
+            #plot.margin = margin(t = 20, r = 30, b = 20, l = 20, unit = "pt"),
+            legend.position = "none",
+            strip.text = element_text(margin = margin(10,5,10,5,"pt")),
+            plot.margin = unit(c(2,2,2,2), 'cm')) +
+  
+      facet_wrap(~tourney_name)
+
+p
+
+ggsave("images/perc_top_20.svg", width = 297, height = 210, units = "mm")
+
+```
+
