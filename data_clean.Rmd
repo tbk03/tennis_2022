@@ -1,9 +1,17 @@
 ---
-title: "R Notebook"
+title: "Data cleaning: combining Grand Slam tennis results and GDP data"
 output:
   html_document:
     df_print: paged
 ---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE, message = FALSE
+)
+```
+
+![](design_files/data_clean_image.jpg)
 
 ```{r}
 library(tidyverse)  # for data manipulation and plotting
@@ -441,10 +449,7 @@ join_performance <- function(df1, df2, join_func, ...){
     filter(!is.na(gdp_per_capita)) %>% 
     distinct(country_code) %>% 
     nrow()
-  
-  # just for output formatting
-  print("\n")
-  
+
   # return the number of observations which are of join successes and failures
   c("join_sucesses" = num_join_hit, "join_failures" = num_join_miss)
 }
