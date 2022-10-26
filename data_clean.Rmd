@@ -4,6 +4,22 @@ output:
   html_document:
     df_print: paged
 ---
+![](design_files/data_clean_image.jpg)
+
+
+After 30 years or so of watching tennis, I had a hunch that the top level of the sport was becoming slightly more open to players from outside the very richest countries. After a lot of data cleaning and data wrangling (around 800 lines of code) I came up with the chart above. It shows that the dominance of Grand Slam tennis by the richest 20% of countries has indeed declined.
+
+To produce the chart, I needed data on the women's and men's singles entrants for each Grand Slam tournament over the last 30 plus year. This came from the excellent [Tennis Abstract](https://github.com/JeffSackmann).I also needed data on the wealth of countries. This came from [Our World in Data](https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart).
+
+In the rest of this R notebook, I go through the data cleaning that helped me to create the chart. I used a range of techniques and approaches, including:
+- Reading in multiple csvs and combining the data.
+- Tidying data.
+- Identifying and imputing missing data.
+- Dealing with issues arising from joining data from different sources.
+- Webscraping. 
+- Using a functional programming approach to generate multiple exploratory plots.
+
+## Notebook Setup
 
 ```{r, include=FALSE}
 knitr::opts_chunk$set(
@@ -11,7 +27,6 @@ knitr::opts_chunk$set(
 )
 ```
 
-![](design_files/data_clean_image.jpg)
 
 ```{r}
 library(tidyverse)  # for data manipulation and plotting
@@ -21,28 +36,16 @@ library(rvest)      # for webscraping
 # set up for plotting
 # ------------------------------------------------------------------------------
 
+# default ggplot2 theme for the notebook
 theme_set(theme_minimal())
 
-# colour palette
+# colour palette for exploratory charts
 highlight_colour <-  "#35469D"
 
 ```
-For publishing on github: https://liuyanguu.github.io/post/2021/01/06/rmarkdown-to-github-pages/
+## The Tennis Data
 
-## intro
-
-- Question: has domination of tennis by players from the wealthiest countries reduced over the course of the open era (1968 onwards)
-- Definitions: 
-  - How well a country is doing: proportion of entrants to the first round of Grand Slams (both womens and mens single draw)
-  - wealthiest countries: 
-
-## Tennis result data
-### Read the data from github
-
-key points
-- 2 tours in separate repos
-- For each tour each years match results are in a separate csv
-- objective: create a dataframe of results for from alls years for each tour
+I started with reading in the raw tennis data for github. This includes match results for tournaments going back to 1920. The results are stored in two separate repos, one for the women's tour (wta) and one for the men's tour (atp). Then the matches for each year are stored in separate csvs. As a starting point, the code below creates a single dataframe of all these results.
 
 ```{r}
 #' Get WTA or ATP tour match results from the Tennis Abstract github for the specified year (https://github.com/JeffSackmann)
@@ -94,16 +97,17 @@ atp_results <- seq(start_year, end_year) %>%
 wta_results <- seq(start_year, end_year) %>% 
   map_df(~get_res(., "wta"))
 
-
+# show the data structure in the notebook
+head(arrange(atp_results, tourney_date))
+head(arrange(wta_results, tourney_date))
 
 ```
-## Tidy the data
+## Tidying the data
 
-Key points:
-- observations are matches
-- the players identified as values of the following variables `winner_id`, `winner_name`, `loser_id`, `loser_name`.
-- Single variables split across two columns (e.g. `winner_age` and `loser_age` actual a single variable `age`) `winner_ioc` and `loser_ioc`
-- Move to observations being a single player's match results
+After a quick look at the dataframes it was clear to me that the data was not in a [tidy form](https://tidyr.tidyverse.org/articles/tidy-data.html). Actually, it is untidy in some pretty interesting ways. Single variables are split across two columns. For example, `winner_age` and `loser_age` actual a single variable `age`. It is the same for the players nationalities which are split across two columns `winner_ioc` and `loser_ioc`.
+
+In the process of tidying the data,  each observation in the datframe becomes one players participation in one match. This makes things much easier later on. In the raw data observations are the matches themselves.
+
 
 ```{r}
 #' Get observations relating to either match winners or losers from 
@@ -190,10 +194,18 @@ all_results_tidy <- bind_rows(
 
 ```
 
-### Focus on relevant data
+After all that tidying, we have a single dataframe with all the results, men's and women's singles. The first few lines of the data look like this.
 
 ```{r}
+head(all_results_tidy)
+```
 
+
+### Focussing in on the relevant data
+
+Up until this point, I had been working with data relating to all tennis matches. For the data visualisations I was making I only needed Grand Slam results. So, now was the time to focus in. Even more specifically, I only needed a few details about the players appearing in the first round of Grand Slam tournaments. The code chunk below got me to where I wanted to be. 
+
+```{r}
 results_focused <- all_results_tidy %>% 
   
   # focus on entrants to grand slam tournaments
@@ -206,16 +218,16 @@ results_focused <- all_results_tidy %>%
   # remove duplicates where players have appeared in multiple rounds 
   unique()
 
-results_focused
-
+# show the structure of the data
+head(results_focused)
 ```
 
 ### Check completeness of data
 
-- I had assumed there had always been 128 plays in each singles draw (so a total of 256 players at each Grandslam)
-- Looking smaller draw size before 1989. Checking historical records of tournament draw I could see that some did have mens or womens draws with less than 128 entrants.
-- Rather than manually check all thesizes of all the smaller draws are correct, I decided to refine the scope of the analysis to look at Grand Slam tournaments from 1990 onwards (where there is no missing data)
-- also identified and issue with tournament names being different for the US Open Men's and Women's Singles in 2019. String matching issue
+I had wanted to look at the dominance of Grand Slams by players from the richest countries from the start of the Open Era (1969). Unfortunately, I couldn't do that as I ran into some missing data issues.
+
+I had assumed there had always been 128 players in the first round of each singles draw. So a total of 256 players at each Grand Slam.In the code chunk below, I looked at the number of singles players for each tournament as a way of identify missing data. I saw some tournaments with fewer than 256 players before 1989. Checking online records for some of these tournaments, I could see that some did indeed have men's or women's draws with less than 128 entrants. Rather than manually checking number of players at the apparently smaller tournaments are correct, I decided to refine the scope of the analysis to look at Grand Slam tournaments from 1990 onwards. The code below also confirms that all post 1990 tournaments have 256 singles players. 
+
 
 ```{r}
 # look for missing data in post 1968 results
@@ -226,6 +238,9 @@ results_focused %>%
 # focus on Grand Slams from 1990 onwards
 results_clean <- results_focused %>% 
   filter(year >= 1990) %>% 
+  
+  # correct and issue with tournament names being different for the US Open 
+  # Men's and Women's Singles in 2019.
   mutate(tourney_name = replace(tourney_name, 
                                 tourney_name == "Us Open",
                                 "US Open"))
@@ -237,8 +252,11 @@ num_missing <- results_clean %>%
   nrow()
 
 assertthat::assert_that(num_missing == 0)
+```
+That is about it for cleaning the tennis data for now. Before moving on to the data on the wealth of countries since 1990, here is how the first few observations of the clean tennis data look. I'm not sure why Michael Brown has `B395` as part of his name! But I didn't the player names for my chart, so I didn't need to worry about that too much.
 
-
+```{r}
+head(results_clean)
 ```
 
 
@@ -480,7 +498,7 @@ join_performance(results_clean,
 #-------------------------------------------------------------------------------
 
 lookup_raw <- read_html("https://simple.wikipedia.org/wiki/Comparison_of_IOC,_FIFA,_and_ISO_3166_country_codes") %>% 
-  html_nodes(xpath="/html/body/div[3]/div[3]/div[5]/div[1]/table[1]") %>% 
+  html_nodes(xpath="/html/body/div[1]/div/div[4]/main/div[2]/div[3]/div[1]/table[1]") %>% 
   html_table() %>% 
   pluck(1)
 
