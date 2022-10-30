@@ -16,7 +16,7 @@ In the rest of this R notebook, I go through the data cleaning that helped me to
 - Tidying data.
 - Identifying and imputing missing data.
 - Dealing with issues arising from joining data from different sources.
-- Webscraping. 
+- Web scraping. 
 - Using a functional programming approach to generate multiple exploratory plots.
 
 ## Notebook Setup
@@ -262,9 +262,7 @@ head(results_clean)
 
 ## GDP data
 
-### Read in, tidy and focus data
-
-**Source:** [Our World in Data](https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart)
+The data I used on the wealth of countries was GDP per capita data from [Our World in Data](https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart). The GDP per capita was much more straight-forward, than the tennis result data, to read in and tidy. It is all done in the code chunk below. The main thing to note is that the data included geographical entities that are not individual countries, such as continents and regions.
 
 ```{r}
 gdp_focus <- read_csv("data/gdp-per-capita-worldbank.csv") %>% 
@@ -295,8 +293,7 @@ gdp_focus <- gdp_focus %>%
 ```
 ### Check completeness of data
 
-look for explicitly missing data
-and implicitly missing data
+On first glance there is no missing data for GDP per capita, there are no NAs in the dataframe. However, I wanted to check for implicitly missing data. In this case that would be missing year-country combinations. Here I did pick up some implicitly missing data.
 
 ```{r}
 # -----------------------------------------------------------------------------
@@ -319,15 +316,17 @@ gdp_focus_exp_grid <-  expand_grid(country = unique(gdp_focus$country),
 # show implicitly missing data
 gdp_missing <- gdp_focus_exp_grid %>% 
   filter(is.na(gdp_per_capita))
-gdp_missing
 
 visdat::vis_miss(gdp_focus_exp_grid) +
   labs(title = "But there is implicitly missing data")
 
-```
-### exploring and imputing missing data
+gdp_missing
 
-- where data is missing, in most cases it is missing for a number of years starting at 1990 and then followed by complete data up until 2020. Based on visual inspection of the dataframe and plot (few lines with breaks in the middle) below.
+```
+
+### Exploring and imputing missing data
+
+From initial inspection of the data (see chunk below), it looked like where GDP per capita data missing for a country, it was missing for a number of years starting at 1990 and then followed by complete data up until 2020. 
 
 ```{r}
 # look at countries with missing data
@@ -347,18 +346,30 @@ p <- gdp_focus_exp_grid %>%
   
   # create the plot
   ggplot(aes(year, gdp_per_capita, group = country)) +
-    geom_line(alpha = 0.8, colour = highlight_colour)
+    geom_line(alpha = 0.8, colour = highlight_colour) +
+      
+    labs(title = "Countries with missing GDP per capita data",
+         subtitle = "Hover over lines to see which countries",
+         x = NULL,
+         y = "GDP per capita") +
+    
+    # dollar axis labels
+    scale_y_continuous(labels=scales::dollar_format()) +
+  
+    # adjust y axis title for readability
+    theme(axis.title.y = element_text(margin = margin(r=10)))
 
 # make interactive with tooltips for data exploration
 plotly::ggplotly(p)
   
 ```
 
-Given the pattern of the missing data get strange behavior trying to use an interpolation function
+I tried using an interpolation function, from the `zoo` package, to impute the missing data. However, given the data is missing at the start of time series, the was some strange interpolation behaviour. See plot below. 
 
 ```{r}
 library(zoo)
 
+# select countries to highlight strange interpolation behavior
 strange_interpolation <- c("Kosovo", "Cayman Islands", "Iceland")
 
 p <- gdp_focus_exp_grid %>% 
@@ -372,14 +383,22 @@ p <- gdp_focus_exp_grid %>%
   ggplot(aes(year, gdp_per_capita, 
              group = country, 
              colour = highlight)) +
+    
     geom_line(alpha = 0.8) +
-  scale_colour_manual(values = c("#C7C2C4", highlight_colour)) +
-  theme(legend.position = "none")
+    
+    scale_colour_manual(values = c("#C7C2C4", highlight_colour)) +
+  
+    labs(title = "Strange behaviour with interpolation function",
+         x = NULL) +
+    
+    # dollar axis labels
+    scale_y_continuous(labels=scales::dollar_format()) +
+    theme(legend.position = "none")
 
 # make interactive with tooltips for data exploration
 plotly::ggplotly(p)
 ```
-So use a simple method, based on the pattern of missing data
+So, I use a simple interpolation method, based on the pattern of missing data. I assumed that where data was missing for a country, say between 1990 and 1995. I would use the first GDP per capita to fill the gaps for missing years. So, in this example the GDP per capita for 1996 would be used to the fill the missing data gaps between 1990 and 1995. 
 
 ```{r}
 # -----------------------------------------------------------------------------
@@ -439,6 +458,9 @@ gdp_clean <- gdp_focus_exp_grid %>%
 
 
 ## Join the two datasets
+
+Having cleaned and reshaped the tennis results and gdp per capita datasets, it was time to join the two datasets together. In both dataset there was a country code (e.g. GBR for Great Britain), so I used this for the join. I wrote a quick function below to test the performance of the join, in terms of how many countries codes were succesfully found in both datasets. Unfortuantely, initial performance of the join was poor, with only 55 of 90 country codes matched.
+
 ```{r}
 
 #' Quickly check how well two dataframes join
@@ -491,6 +513,9 @@ join_performance(results_clean,
   gdp_clean,left_join)
 
 ```
+
+I realised that the two datasets were using different naming standards. ISO codes in the gdp data, and IOC codes for the tennis data. So, I web scraped a lookup table for converting between the two standards from Wikipedia.This improved the join performance considerably, see code output below.
+
 ```{r}
 #-------------------------------------------------------------------------------
 # web scrape a look up table for mapping between iso country codes (gdp data)
@@ -529,6 +554,10 @@ gdp_clean_ioc <- gdp_clean_ioc %>%
 join_performance(results_clean,
                  gdp_clean_ioc,left_join)
 
+```
+I thought with a bit of manual intervention, I could probably improve the join performance a little more. So, I took a look at the tennis players (and their nationalities), where it was not possible to match up GDP per capita data.
+
+```{r}
 # look at players/countries where no match to gdp data
 
 no_match <- results_clean %>% 
@@ -541,8 +570,10 @@ no_match %>%
 no_match %>% 
   distinct(country_code)
 
-unique(gdp_clean_ioc$country_code)
 ```
+
+I could see that some of the issues related to countries that no longer exist, for example the USSR. As an approximation, I thought where possible these could be replaced with a current and related country, for example Russia. After some manual updates this improved the join performance a little further, and I was happy to call the joined data good enough to work with. For only 5 countries, in the tennis results data, it wasn't possible to match up GDP per capita data. Non of these 5 countries were major tennis playing countries.
+
 ```{r}
 # -----------------------------------------------------------------------------
 # Identify predecessor countries and check for the names of countries with 
@@ -602,6 +633,8 @@ results_gdp %>%
   relocate(gdp_per_capita, country) %>% 
   visdat::vis_miss()
 ```
+
+## Exploratory data analysis
 
 ```{r}
 # -----------------------------------------------------------------------------
@@ -716,6 +749,7 @@ seq(10,1) %>%
 
 
 ```
+## Producing the skelton of the chart (for editting in graphic design software)
 
 ```{r}
 # -----------------------------------------------------------------------------
