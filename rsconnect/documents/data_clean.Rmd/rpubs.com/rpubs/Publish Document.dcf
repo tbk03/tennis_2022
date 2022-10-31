@@ -1,0 +1,11 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/964176/d46380ca5ef249288176e3b104e2dc2c
+bundleId: https://api.rpubs.com/api/v1/document/964176/d46380ca5ef249288176e3b104e2dc2c
+url: http://rpubs.com/chrismartin03/964176
+when: 1667222684.82374
+lastSyncTime: 1667222684.82375

@@ -1,5 +1,6 @@
 ---
 title: "Data cleaning: combining Grand Slam tennis results and GDP data"
+author: "Dr. Chris Martin"
 output:
   html_document:
     df_print: paged
@@ -12,6 +13,7 @@ After 30 years or so of watching tennis, I had a hunch that the top level of the
 To produce the chart, I needed data on the women's and men's singles entrants for each Grand Slam tournament over the last 30 plus year. This came from the excellent [Tennis Abstract](https://github.com/JeffSackmann).I also needed data on the wealth of countries. This came from [Our World in Data](https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart).
 
 In the rest of this R notebook, I go through the data cleaning that helped me to create the chart. I used a range of techniques and approaches, including:
+
 - Reading in multiple csvs and combining the data.
 - Tidying data.
 - Identifying and imputing missing data.
@@ -19,7 +21,59 @@ In the rest of this R notebook, I go through the data cleaning that helped me to
 - Web scraping. 
 - Using a functional programming approach to generate multiple exploratory plots.
 
-## Notebook Setup
+<br/>
+<a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc-sa/4.0/88x31.png" /></a><br />This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/">Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License</a>.
+
+## 1. Notebook Setup
+
+```{css, echo=FALSE}
+
+
+  @import url('https://fonts.googleapis.com/css2?family=Poppins&display=swap');
+
+	h1,	h2,	h3,	p,	li,	tbody {
+		font-family: 'Poppins', sans-serif;
+		color: #404040;
+	}
+	
+	p, li {
+	font-size: 1.7rem;
+  }
+
+  .r {
+  font-size: 1.5rem;
+  }
+
+
+	h2 {
+		line-height: 1.1;
+		padding-bottom: 8px;
+		font-weight: bold;
+		margin-top: 3rem;
+	}
+
+
+	h3 {
+		text-align: left;
+		line-height: 1.5;
+		font-weight: bold;
+		margin-bottom: 1.5rem;
+		margin-top: 3rem;
+	}
+
+	a {
+		color: #355070;
+	}
+
+	.main-container {
+		max-width: 1200px;
+		min-width: 300px;
+		margin-left: auto;
+		margin-right: auto;
+		padding-left: 9%;
+		padding-right: 9%;
+	}
+```
 
 ```{r, include=FALSE}
 knitr::opts_chunk$set(
@@ -43,7 +97,7 @@ theme_set(theme_minimal())
 highlight_colour <-  "#35469D"
 
 ```
-## The Tennis Data
+## 2. The Tennis Data
 
 I started with reading in the raw tennis data for github. This includes match results for tournaments going back to 1920. The results are stored in two separate repos, one for the women's tour (wta) and one for the men's tour (atp). Then the matches for each year are stored in separate csvs. As a starting point, the code below creates a single dataframe of all these results.
 
@@ -102,7 +156,7 @@ head(arrange(atp_results, tourney_date))
 head(arrange(wta_results, tourney_date))
 
 ```
-## Tidying the data
+### 2.1 Tidying the data
 
 After a quick look at the dataframes it was clear to me that the data was not in a [tidy form](https://tidyr.tidyverse.org/articles/tidy-data.html). Actually, it is untidy in some pretty interesting ways. Single variables are split across two columns. For example, `winner_age` and `loser_age` actual a single variable `age`. It is the same for the players nationalities which are split across two columns `winner_ioc` and `loser_ioc`.
 
@@ -201,7 +255,7 @@ head(all_results_tidy)
 ```
 
 
-### Focussing in on the relevant data
+### 2.2. Focussing in on the relevant data
 
 Up until this point, I had been working with data relating to all tennis matches. For the data visualisations I was making I only needed Grand Slam results. So, now was the time to focus in. Even more specifically, I only needed a few details about the players appearing in the first round of Grand Slam tournaments. The code chunk below got me to where I wanted to be. 
 
@@ -222,7 +276,7 @@ results_focused <- all_results_tidy %>%
 head(results_focused)
 ```
 
-### Check completeness of data
+### 2.3. Check completeness of data
 
 I had wanted to look at the dominance of Grand Slams by players from the richest countries from the start of the Open Era (1969). Unfortunately, I couldn't do that as I ran into some missing data issues.
 
@@ -260,7 +314,7 @@ head(results_clean)
 ```
 
 
-## GDP data
+## 3. GDP data
 
 The data I used on the wealth of countries was GDP per capita data from [Our World in Data](https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart). The GDP per capita was much more straight-forward, than the tennis result data, to read in and tidy. It is all done in the code chunk below. The main thing to note is that the data included geographical entities that are not individual countries, such as continents and regions.
 
@@ -291,7 +345,7 @@ gdp_focus <- gdp_focus %>%
   
   
 ```
-### Check completeness of data
+### 3.1. Check completeness of data
 
 On first glance there is no missing data for GDP per capita, there are no NAs in the dataframe. However, I wanted to check for implicitly missing data. In this case that would be missing year-country combinations. Here I did pick up some implicitly missing data.
 
@@ -324,7 +378,7 @@ gdp_missing
 
 ```
 
-### Exploring and imputing missing data
+### 3.2. Exploring and imputing missing data
 
 From initial inspection of the data (see chunk below), it looked like where GDP per capita data missing for a country, it was missing for a number of years starting at 1990 and then followed by complete data up until 2020. 
 
@@ -457,7 +511,7 @@ gdp_clean <- gdp_focus_exp_grid %>%
 
 
 
-## Join the two datasets
+## 4. Join the two datasets
 
 Having cleaned and reshaped the tennis results and gdp per capita datasets, it was time to join the two datasets together. In both dataset there was a country code (e.g. GBR for Great Britain), so I used this for the join. I wrote a quick function below to test the performance of the join, in terms of how many countries codes were succesfully found in both datasets. Unfortuantely, initial performance of the join was poor, with only 55 of 90 country codes matched.
 
@@ -634,7 +688,7 @@ results_gdp %>%
   visdat::vis_miss()
 ```
 
-## Exploratory data analysis
+## 5. Exploratory data analysis
 
 Before creating the chart itself, I did some quick exploratory data analysis, looking for any interesting trends. First, it was a case of looking at how many first round grand slam appearances where made by players from each country each year. I then produced a couple exploratory plots. The first looks at the number of countries represented in Grand Slam draws each, as I wondered if there were any interesting trends around this. The second (interactive) plot show the number of first round grand slam appearances made by players from each country over time. The number of Grand Slam appearances from players for USA shows a big decline between 1990 (262 appearances) and 2011 (85 appearances)!
 
@@ -757,7 +811,7 @@ seq(10,1) %>%
 
 ```
 
-## Producing the skelton of the chart (for editting in graphic design software)
+## 6. Producing the skelton of the chart (for editting in graphic design software)
 
 The last code-based part of the work, was to create a skeleton of the chart. As you can see it is fairly minimal, this is because I did the annotation and tidying up of the plot using graphic design (Affinity Designer). I often prefer this workflow to spending hours working out how to tweak the presentation of a plot in the `ggplot2` code. It was while producing the chart skeleton that I made the decision to produce separate small multiples plots for each Grand Slam tournament. I thought the idea of all Grand Slam first round appearances in a year wasn't particularly intuitive. Whereas presenting the data by each tournament fit better with how people watch and engage with tennis. It also created more space for annotation of the data and trends.
 
@@ -863,7 +917,7 @@ p
 ggsave("images/perc_top_20.svg", width = 297, height = 210, units = "mm")
 
 ```
-## The final chart
+## 7. The final chart
 
 In case you need a reminder of what the finished chart looks like, after all the data cleaning work above. Here it is.
 
