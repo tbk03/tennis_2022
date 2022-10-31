@@ -1,5 +1,5 @@
 ---
-title: "Data cleaning: combining Grand Slam tennis results and GDP data"
+title: "Data cleaning: R code example "
 author: "Dr. Chris Martin"
 output:
   html_document:
@@ -10,9 +10,9 @@ output:
 
 After 30 years or so of watching tennis, I had a hunch that the top level of the sport was becoming slightly more open to players from outside the very richest countries. After a lot of data cleaning and data wrangling (around 800 lines of code) I came up with the chart above. It shows that the dominance of Grand Slam tennis by the richest 20% of countries has indeed declined.
 
-To produce the chart, I needed data on the women's and men's singles entrants for each Grand Slam tournament over the last 30 plus year. This came from the excellent [Tennis Abstract](https://github.com/JeffSackmann).I also needed data on the wealth of countries. This came from [Our World in Data](https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart).
+To produce the chart, I needed data on the women's and men's singles entrants for each Grand Slam tournament since 1990. This came from the excellent [Tennis Abstract](https://github.com/JeffSackmann). I also needed data on the wealth of countries. This came from [Our World in Data](https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart).
 
-In the rest of this R notebook, I go through the data cleaning that helped me to create the chart. I used a range of techniques and approaches, including:
+In the rest of this R notebook, I go through the data cleaning process that enabled me to create the chart. I used a range of techniques and approaches, including:
 
 - Reading in multiple csvs and combining the data.
 - Tidying data.
@@ -21,8 +21,10 @@ In the rest of this R notebook, I go through the data cleaning that helped me to
 - Web scraping. 
 - Using a functional programming approach to generate multiple exploratory plots.
 
+
 <br/>
 <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc-sa/4.0/88x31.png" /></a><br />This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/">Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License</a>.
+
 
 ## 1. Notebook Setup
 
@@ -39,7 +41,12 @@ In the rest of this R notebook, I go through the data cleaning that helped me to
 	p, li {
 	font-size: 1.7rem;
   }
-
+  
+  image, table {
+    margin-bottom: 2rem;
+		margin-top: 2rem;
+  }
+  
   .r {
   font-size: 1.5rem;
   }
@@ -77,7 +84,9 @@ In the rest of this R notebook, I go through the data cleaning that helped me to
 
 ```{r, include=FALSE}
 knitr::opts_chunk$set(
-  warning = FALSE, message = FALSE
+  warning = FALSE, message = FALSE,
+  fig.align = 'center',
+  out.width = "100%"
 )
 ```
 
@@ -97,9 +106,12 @@ theme_set(theme_minimal())
 highlight_colour <-  "#35469D"
 
 ```
+
 ## 2. The Tennis Data
 
-I started with reading in the raw tennis data for github. This includes match results for tournaments going back to 1920. The results are stored in two separate repos, one for the women's tour (wta) and one for the men's tour (atp). Then the matches for each year are stored in separate csvs. As a starting point, the code below creates a single dataframe of all these results.
+
+I started with reading in the raw tennis data for github. This includes match results for tournaments going back to 1920. The results are stored in two separate repos, one for the women's tour (wta) and one for the men's tour (atp). The matches for each year are stored in separate csvs. As a starting point, the code below creates a single dataframe including all these results.
+
 
 ```{r}
 #' Get WTA or ATP tour match results from the Tennis Abstract github for the specified year (https://github.com/JeffSackmann)
@@ -156,11 +168,13 @@ head(arrange(atp_results, tourney_date))
 head(arrange(wta_results, tourney_date))
 
 ```
+
 ### 2.1 Tidying the data
 
-After a quick look at the dataframes it was clear to me that the data was not in a [tidy form](https://tidyr.tidyverse.org/articles/tidy-data.html). Actually, it is untidy in some pretty interesting ways. Single variables are split across two columns. For example, `winner_age` and `loser_age` actual a single variable `age`. It is the same for the players nationalities which are split across two columns `winner_ioc` and `loser_ioc`.
 
-In the process of tidying the data,  each observation in the datframe becomes one players participation in one match. This makes things much easier later on. In the raw data observations are the matches themselves.
+After a quick look at the dataframes it was clear to me that the data was not in a [tidy form](https://tidyr.tidyverse.org/articles/tidy-data.html). Actually, it is untidy in some pretty interesting ways. Single variables are split across two columns. For example, `winner_age` and `loser_age` are actual a single variable `age`. It is the same for the  nationalities of players, which I'll need later on to create the chart. They are split across two columns `winner_ioc` and `loser_ioc`.
+
+In the process of tidying the data,  each observation in the datframe becomes one players participation in one match. This makes things much easier later on. In the raw data, observations are the matches themselves.
 
 
 ```{r}
@@ -255,9 +269,9 @@ head(all_results_tidy)
 ```
 
 
-### 2.2. Focussing in on the relevant data
+### 2.2. Focussing on the relevant data
 
-Up until this point, I had been working with data relating to all tennis matches. For the data visualisations I was making I only needed Grand Slam results. So, now was the time to focus in. Even more specifically, I only needed a few details about the players appearing in the first round of Grand Slam tournaments. The code chunk below got me to where I wanted to be. 
+Up until this point, I had been working with data relating to tennis matches at many different torunaments. For the chart I was making I only needed Grand Slam results. So, now was the time to focus in. Even more specifically, I only needed a few details about the players appearing in the first round of Grand Slam tournaments. The code chunk below got me to where I wanted to be. 
 
 ```{r}
 results_focused <- all_results_tidy %>% 
@@ -276,11 +290,15 @@ results_focused <- all_results_tidy %>%
 head(results_focused)
 ```
 
-### 2.3. Check completeness of data
+### 2.3. Checking for missing data
 
-I had wanted to look at the dominance of Grand Slams by players from the richest countries from the start of the Open Era (1969). Unfortunately, I couldn't do that as I ran into some missing data issues.
+I had wanted to look at the dominance of Grand Slams by players from the richest countries from the start of the Open Era (1969). Unfortunately, I couldn't do that as I ran into potential some missing data issues.
 
-I had assumed there had always been 128 players in the first round of each singles draw. So a total of 256 players at each Grand Slam.In the code chunk below, I looked at the number of singles players for each tournament as a way of identify missing data. I saw some tournaments with fewer than 256 players before 1989. Checking online records for some of these tournaments, I could see that some did indeed have men's or women's draws with less than 128 entrants. Rather than manually checking number of players at the apparently smaller tournaments are correct, I decided to refine the scope of the analysis to look at Grand Slam tournaments from 1990 onwards. The code below also confirms that all post 1990 tournaments have 256 singles players. 
+I had assumed there had always been 128 players in the first round of each singles draw. So a total of 256 players at each Grand Slam. In the code chunk below, I looked at the number of singles players for each tournament as a way to identify missing data. 
+
+I saw some tournaments with fewer than 256 players before 1989. Checking online records for some of these tournaments, I could see that some did indeed have men's or women's draws with less than 128 entrants. 
+
+Rather than manually checking the number of players at the apparently smaller tournaments were correct, I decided to refine the scope of the analysis to look at Grand Slam tournaments from 1990 onwards. The code below also confirms that all post 1990 tournaments have 256 singles players. So no missing data post 1990.
 
 
 ```{r}
@@ -307,7 +325,7 @@ num_missing <- results_clean %>%
 
 assertthat::assert_that(num_missing == 0)
 ```
-That is about it for cleaning the tennis data for now. Before moving on to the data on the wealth of countries since 1990, here is how the first few observations of the clean tennis data look. I'm not sure why Michael Brown has `B395` as part of his name! But I didn't the player names for my chart, so I didn't need to worry about that too much.
+That is about it for cleaning the tennis data for now. Before moving on to other dataset. The data on the wealth of countries since 1990, here is how the first few observations of the clean tennis data look. I'm not sure why Michael Brown has `B395` as part of his name! I didn't need player names for my chart, so I didn't worry about that too much.
 
 ```{r}
 head(results_clean)
@@ -316,7 +334,7 @@ head(results_clean)
 
 ## 3. GDP data
 
-The data I used on the wealth of countries was GDP per capita data from [Our World in Data](https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart). The GDP per capita was much more straight-forward, than the tennis result data, to read in and tidy. It is all done in the code chunk below. The main thing to note is that the data included geographical entities that are not individual countries, such as continents and regions.
+The data I used on the wealth of countries was GDP per capita data from [Our World in Data](https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart). The GDP per capita data was much more straight-forward  to read in and tidy, than the tennis result data. It is all done in the code chunk below. The main thing to note is that the data included geographical entities that are not individual countries, such as continents and regions. It made sense to remove these.
 
 ```{r}
 gdp_focus <- read_csv("data/gdp-per-capita-worldbank.csv") %>% 
@@ -345,9 +363,9 @@ gdp_focus <- gdp_focus %>%
   
   
 ```
-### 3.1. Check completeness of data
+### 3.1. Checking for missing data
 
-On first glance there is no missing data for GDP per capita, there are no NAs in the dataframe. However, I wanted to check for implicitly missing data. In this case that would be missing year-country combinations. Here I did pick up some implicitly missing data.
+On first glance there is no missing data for GDP per capita, there are no NAs in the dataframe. However, I wanted to check for implicitly missing data too. In this case that would be missing year-country combinations. Here I did pick up some implicitly missing data.
 
 ```{r}
 # -----------------------------------------------------------------------------
@@ -374,13 +392,13 @@ gdp_missing <- gdp_focus_exp_grid %>%
 visdat::vis_miss(gdp_focus_exp_grid) +
   labs(title = "But there is implicitly missing data")
 
-gdp_missing
+head(gdp_missing)
 
 ```
 
 ### 3.2. Exploring and imputing missing data
 
-From initial inspection of the data (see chunk below), it looked like where GDP per capita data missing for a country, it was missing for a number of years starting at 1990 and then followed by complete data up until 2020. 
+From initial inspection of the data (see chunk below), it looked like where GDP per capita data was missing for a country, it tended to be missing for a number of years starting at 1990. The missing data was then followed by complete data up until 2020. 
 
 ```{r}
 # look at countries with missing data
@@ -418,7 +436,7 @@ plotly::ggplotly(p)
   
 ```
 
-I tried using an interpolation function, from the `zoo` package, to impute the missing data. However, given the data is missing at the start of time series, the was some strange interpolation behaviour. See plot below. 
+I tried using an interpolation function, from the `zoo` package, to impute the missing data. However, given the data was often missing at the start of time series, there was some strange interpolation behaviour. See plot below. 
 
 ```{r}
 library(zoo)
@@ -452,7 +470,7 @@ p <- gdp_focus_exp_grid %>%
 # make interactive with tooltips for data exploration
 plotly::ggplotly(p)
 ```
-So, I use a simple interpolation method, based on the pattern of missing data. I assumed that where data was missing for a country, say between 1990 and 1995. I would use the first GDP per capita to fill the gaps for missing years. So, in this example the GDP per capita for 1996 would be used to the fill the missing data gaps between 1990 and 1995. 
+So, I use a simple interpolation method, based on the pattern of missing data. I assumed that where data was missing for a country, say between 1990 and 1995. I would use the first available  GDP per capita observation to fill the gaps for missing years. So, in this example the GDP per capita for 1996 would be used to the fill the missing data gaps between 1990 and 1995. 
 
 ```{r}
 # -----------------------------------------------------------------------------
@@ -511,9 +529,9 @@ gdp_clean <- gdp_focus_exp_grid %>%
 
 
 
-## 4. Join the two datasets
+## 4. Joining the two datasets
 
-Having cleaned and reshaped the tennis results and gdp per capita datasets, it was time to join the two datasets together. In both dataset there was a country code (e.g. GBR for Great Britain), so I used this for the join. I wrote a quick function below to test the performance of the join, in terms of how many countries codes were succesfully found in both datasets. Unfortuantely, initial performance of the join was poor, with only 55 of 90 country codes matched.
+Having cleaned and reshaped the tennis results and gdp per capita datasets, it was time to join the two datasets together. In both datasets there is a country code (e.g. GBR for Great Britain), so I used this for the join. I wrote a quick function below to test the performance of the join, in terms of how many countries codes were successfully matched to join the two datasets. Unfortunately, initial performance of the join was poor, with only 55 of 90 country codes matched.
 
 ```{r}
 
@@ -568,7 +586,7 @@ join_performance(results_clean,
 
 ```
 
-I realised that the two datasets were using different naming standards. ISO codes in the gdp data, and IOC codes for the tennis data. So, I web scraped a lookup table for converting between the two standards from Wikipedia.This improved the join performance considerably, see code output below.
+I realised that the two datasets were using different naming standards. ISO codes in the gdp data, and IOC codes for the tennis data. So, I web scraped a lookup table for converting between the two standards from Wikipedia. This improved the join performance considerably, see code output below.
 
 ```{r}
 #-------------------------------------------------------------------------------
@@ -626,7 +644,7 @@ no_match %>%
 
 ```
 
-I could see that some of the issues related to countries that no longer exist, for example the USSR. As an approximation, I thought where possible these could be replaced with a current and related country, for example Russia. After some manual updates this improved the join performance a little further, and I was happy to call the joined data good enough to work with. For only 5 countries, in the tennis results data, it wasn't possible to match up GDP per capita data. Non of these 5 countries were major tennis playing countries.
+I could see that some of the issues related to countries that no longer exist, for example the USSR. As an approximation, I thought where possible these could be replaced with a current and related country, for example Russia. After some manual updates this improved the join performance a little further, and I was happy to call the joined data good enough to work with. It wasn't possible to match up GDP per capita data for 5 countries in the tennis results data. None of these 5 countries were major tennis playing countries.
 
 ```{r}
 # -----------------------------------------------------------------------------
@@ -690,7 +708,12 @@ results_gdp %>%
 
 ## 5. Exploratory data analysis
 
-Before creating the chart itself, I did some quick exploratory data analysis, looking for any interesting trends. First, it was a case of looking at how many first round grand slam appearances where made by players from each country each year. I then produced a couple exploratory plots. The first looks at the number of countries represented in Grand Slam draws each, as I wondered if there were any interesting trends around this. The second (interactive) plot show the number of first round grand slam appearances made by players from each country over time. The number of Grand Slam appearances from players for USA shows a big decline between 1990 (262 appearances) and 2011 (85 appearances)!
+Before creating the chart itself, I did some quick exploratory data analysis, looking for any interesting trends. 
+
+First, it was a case of looking at how many first round grand slam appearances where made by players from each country each year. I then produced a couple of exploratory plots. 
+
+- The first looks at the number of countries represented in Grand Slam draws each year, as I wondered if there were any interesting trends around this. 
+- The second (interactive) plot shows the number of first round grand slam appearances made by players from each country over time. The number of Grand Slam appearances from players for USA shows a big decline between 1990 (262 appearances) and 2011 (85 appearances)!
 
 ```{r}
 # -----------------------------------------------------------------------------
@@ -728,7 +751,7 @@ p <- ggplot(num_gs_entrants, aes(year, num_first_rd, group = country)) +
 
 plotly::ggplotly(p) # make interactive to explore which line is which country
 ```
-Seeing the drop off in Grand Slam appearances by American players, I got back to thinking about the wider trend amongst the richest countries (by GDP per capita). However, I wasn't sure exactly where to set the cutoff for the richest countries. Should I focus on the top 10% of richest countries or the top 50%? So, I decided to take a look at the trends for each options. The top 10%, 20%, 30% etc. of countries. You can see all 10 of plots below. After a quick look at the plots I settled on focusing on the top 20% of richest countries.
+Seeing the drop off in Grand Slam appearances by American players, I got back to thinking about the wider trend amongst the richest countries (by GDP per capita). However, I wasn't sure exactly where to set the cutoff for the richest countries. Should I focus on the top 10% of richest countries or the top 50%? So, I decided to take a look at the trends for each options. The top 10%, 20%, 30% etc. of countries. You can see all 10 of the plots below. After a quick look at the plots I settled on focusing on the top 20% of richest countries, as this looked the most interesting trend.
 
 ```{r}
 # calculated country income deciles for each country
@@ -813,7 +836,9 @@ seq(10,1) %>%
 
 ## 6. Producing the skelton of the chart (for editting in graphic design software)
 
-The last code-based part of the work, was to create a skeleton of the chart. As you can see it is fairly minimal, this is because I did the annotation and tidying up of the plot using graphic design (Affinity Designer). I often prefer this workflow to spending hours working out how to tweak the presentation of a plot in the `ggplot2` code. It was while producing the chart skeleton that I made the decision to produce separate small multiples plots for each Grand Slam tournament. I thought the idea of all Grand Slam first round appearances in a year wasn't particularly intuitive. Whereas presenting the data by each tournament fit better with how people watch and engage with tennis. It also created more space for annotation of the data and trends.
+The last code-based part of the work, was to create a skeleton of the chart. As you can see it is fairly minimal, this is because I did the annotation and tidying up of the plot using graphic design software (Affinity Designer). I often prefer this workflow to spending hours working out how to tweak the presentation of a plot in the `ggplot2` code. 
+
+While producing the chart skeleton I made the decision to produce separate small multiples plots for each Grand Slam tournament. I thought the idea of all Grand Slam first round appearances in a year wasn't particularly intuitive. Whereas presenting the data for each tournament fit better with how people watch and engage with tennis. It also created more space for annotation of the data and trends.
 
 ```{r}
 # -----------------------------------------------------------------------------
