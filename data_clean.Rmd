@@ -636,6 +636,8 @@ results_gdp %>%
 
 ## Exploratory data analysis
 
+Before creating the chart itself, I did some quick exploratory data analysis, looking for any interesting trends. First, it was a case of looking at how many first round grand slam appearances where made by players from each country each year. I then produced a couple exploratory plots. The first looks at the number of countries represented in Grand Slam draws each, as I wondered if there were any interesting trends around this. The second (interactive) plot show the number of first round grand slam appearances made by players from each country over time. The number of Grand Slam appearances from players for USA shows a big decline between 1990 (262 appearances) and 2011 (85 appearances)!
+
 ```{r}
 # -----------------------------------------------------------------------------
 # calculate number of first round grand slam entrants for each country each
@@ -649,7 +651,7 @@ num_gs_entrants <- results_gdp %>%
   distinct() %>% 
   arrange(year, desc(num_first_rd))
 
-num_gs_entrants
+head(num_gs_entrants)
 
 # num of countries represented in first round of grand slam singles
 num_countries <- num_gs_entrants %>% 
@@ -661,13 +663,18 @@ num_countries <- num_gs_entrants %>%
 # -----------------------------------------------------------------------------
 
 ggplot(num_countries, aes(year, num_countries_represented)) +
-  geom_col()
+  geom_col(fill = highlight_colour, width = 0.8) +
+  labs(x = NULL,
+      y = "Number of countries represented in at a Grand Slam")
 
 p <- ggplot(num_gs_entrants, aes(year, num_first_rd, group = country)) +
-  geom_line(alpha = 0.5)
+        geom_line(alpha = 0.5, colour = highlight_colour) +
+        labs(y = "Number of Grand Slam first round appearances",
+             x = NULL)
 
 plotly::ggplotly(p) # make interactive to explore which line is which country
 ```
+Seeing the drop off in Grand Slam appearances by American players, I got back to thinking about the wider trend amongst the richest countries (by GDP per capita). However, I wasn't sure exactly where to set the cutoff for the richest countries. Should I focus on the top 10% of richest countries or the top 50%? So, I decided to take a look at the trends for each options. The top 10%, 20%, 30% etc. of countries. You can see all 10 of plots below. After a quick look at the plots I settled on focusing on the top 20% of richest countries.
 
 ```{r}
 # calculated country income deciles for each country
@@ -749,7 +756,10 @@ seq(10,1) %>%
 
 
 ```
+
 ## Producing the skelton of the chart (for editting in graphic design software)
+
+The last code-based part of the work, was to create a skeleton of the chart. As you can see it is fairly minimal, this is because I did the annotation and tidying up of the plot using graphic design (Affinity Designer). I often prefer this workflow to spending hours working out how to tweak the presentation of a plot in the `ggplot2` code. It was while producing the chart skeleton that I made the decision to produce separate small multiples plots for each Grand Slam tournament. I thought the idea of all Grand Slam first round appearances in a year wasn't particularly intuitive. Whereas presenting the data by each tournament fit better with how people watch and engage with tennis. It also created more space for annotation of the data and trends.
 
 ```{r}
 # -----------------------------------------------------------------------------
@@ -853,4 +863,8 @@ p
 ggsave("images/perc_top_20.svg", width = 297, height = 210, units = "mm")
 
 ```
+## The final chart
 
+In case you need a reminder of what the finished chart looks like, after all the data cleaning work above. Here it is.
+
+![](design_files/data_clean_image.jpg)
