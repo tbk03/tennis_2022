@@ -1,0 +1,56 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(sf)
+library(gganimate)
+library(transformr)
+```
+
+```{r}
+
+library(showtext)
+font_add_google("Lato", family = "lato")
+
+showtext_auto()
+
+gs_first_round_gdp <- read_csv("../data/results_gdp.csv")
+gs_first_round_gdp
+
+countries <- read_sf("../data/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp")
+
+ggplot(countries) +
+  geom_sf()
+
+anim <- gs_first_round_gdp %>% 
+  filter(!is.na(gdp_per_capita)) %>% 
+  distinct(year, country, iso) %>% 
+  left_join(countries %>% 
+              select(SOVEREIGNT, ISO_A3_EH), 
+            by = c("iso" = "ISO_A3_EH")) %>% 
+  #visdat::vis_miss() %>% 
+  #filter(is.na(SOVEREIGNT))
+  
+  st_as_sf() %>%
+  
+  ggplot() + 
+    geom_sf() +
+    theme(text = element_text(family = "lato")) +
+      transition_manual(year) +
+      ease_aes('linear')
+  
+anim <- anim +
+  ggtitle('Now showing {current_frame}',
+          subtitle = 'Frame {frame} of {nframes}')
+
+animate(anim, fps = 3)
+
+showtext(FALSE)
+
+  
+  
+```
+
