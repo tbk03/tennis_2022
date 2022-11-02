@@ -706,6 +706,14 @@ results_gdp %>%
   visdat::vis_miss()
 ```
 
+```{r include=FALSE}
+results_gdp %>% 
+  left_join(iso_ioc_lookup, by = c("country_code" = "ioc")) %>% 
+  rename(ioc = country_code) %>% 
+  write_csv("data/results_gdp.csv")
+```
+
+
 ## 5. Exploratory data analysis
 
 Before creating the chart itself, I did some quick exploratory data analysis, looking for any interesting trends. 
