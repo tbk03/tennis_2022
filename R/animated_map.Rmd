@@ -13,6 +13,8 @@ library(transformr)
 ```{r}
 
 library(showtext)
+library(rmapshaper)
+
 font_add_google("Lato", family = "lato")
 
 showtext_auto()
@@ -20,37 +22,103 @@ showtext_auto()
 gs_first_round_gdp <- read_csv("../data/results_gdp.csv")
 gs_first_round_gdp
 
-countries <- read_sf("../data/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp")
+countries <- read_sf("../data/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp") %>% 
+  rmapshaper::ms_simplify(keep = 0.2) 
+
+# -----------------------------------------------------------------------------
+# working
+# -----------------------------------------------------------------------------
+
+fake_data <- expand_grid(year = 1990:2020,
+                         ISO_A3_EH = unique(countries$ISO_A3_EH))
+
+countries_all_years <- countries %>% 
+  select(ISO_A3_EH) %>% 
+  inner_join(fake_data) %>% 
+  rename(iso = ISO_A3_EH) %>% 
+  left_join(gs_first_round_gdp %>% 
+              count(year, country, iso)) %>% 
+  # filter(year <= 1991) %>% 
+  ggplot() + 
+    geom_sf(aes(fill = n, colour = n), size = 0) +
+  
+    theme_void() +
+    transition_time(year) +
+    #enter_recolor() + exit_recolor() +
+    ggtitle('{round(frame_time)}')
+
+countries_all_years
+
+anim_save("test.gif")
+# -----------------------------------------------------------------------------
+# working
+# -----------------------------------------------------------------------------
+
+  # enter_fade() + exit_fade()
+  
 
 ggplot(countries) +
   geom_sf()
 
-anim <- gs_first_round_gdp %>% 
-  filter(!is.na(gdp_per_capita)) %>% 
+gd_first_round_sf <- gs_first_round_gdp %>% 
+  #filter(!is.na(gdp_per_capita)) %>% 
   distinct(year, country, iso) %>% 
   left_join(countries %>% 
-              select(SOVEREIGNT, ISO_A3_EH), 
+              select(ISO_A3_EH), 
             by = c("iso" = "ISO_A3_EH")) %>% 
+  st_as_sf()
   #visdat::vis_miss() %>% 
   #filter(is.na(SOVEREIGNT))
+
   
-  st_as_sf() %>%
-  
-  ggplot() + 
+anim <- ggplot(gd_first_round_sf) + 
     geom_sf() +
     theme(text = element_text(family = "lato")) +
-      transition_manual(year) +
-      ease_aes('linear')
+      transition_time(year)
   
-anim <- anim +
-  ggtitle('Now showing {current_frame}',
-          subtitle = 'Frame {frame} of {nframes}')
+# anim <- anim +
+#   ggtitle('Now showing {current_frame}',
+#           subtitle = 'Frame {frame} of {nframes}')
 
 animate(anim, fps = 3)
 
-showtext(FALSE)
+showtext::showtext_end()
 
+
+gd_first_round_sf %>% 
+  filter(year <= 1991) %>% 
+  ggplot() + geom_sf() +
+  transition_time(year)
+
+expand_grid(year = unique(gd_first_round_sf$year), 
+            country = unique(gd_first_round_sf$country)) %>% 
+  left_join(gd_first_round_sf) %>% 
+  st_as_sf() %>% 
+  mutate(present = if_else(is.na(iso), FALSE, TRUE)) %>% 
+  ggplot() + geom_sf(mapping = aes(fill = present)) +
+  transition_states(year)
   
+```
+```{r}
+
+polygons <- gd_first_round_sf[!st_is_empty(gd_first_round_sf), ] %>% 
+  as("Spatial") %>% 
+  fortify() %>% 
+  mutate(id = as.numeric(id))
+
+# %>% 
+#   
+
+gd_first_round_sf %>% 
+  mutate(id = row_number()) %>% 
+  st_drop_geometry() %>% 
+  left_join(polygons) %>% 
   
+  ggplot() +
+    geom_polygon(mapping = aes(x = long, y = lat, group = group)) +
+    transition_states(year)
+
+
+
 ```
 
