@@ -23,7 +23,8 @@ gs_first_round_gdp <- read_csv("../data/results_gdp.csv")
 gs_first_round_gdp
 
 countries <- read_sf("../data/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp") %>% 
-  rmapshaper::ms_simplify(keep = 0.2) 
+  rmapshaper::ms_simplify(keep = 0.5) %>% 
+  st_transform(crs = "+proj=eqearth")
 
 # -----------------------------------------------------------------------------
 # working
@@ -34,91 +35,129 @@ fake_data <- expand_grid(year = 1990:2020,
 
 countries_all_years <- countries %>% 
   select(ISO_A3_EH) %>% 
+  filter(ISO_A3_EH != 'ATA') %>% 
   inner_join(fake_data) %>% 
   rename(iso = ISO_A3_EH) %>% 
   left_join(gs_first_round_gdp %>% 
               count(year, country, iso)) %>% 
-  # filter(year <= 1991) %>% 
+  mutate(n = if_else(is.na(n), 0L, n),
+         at_gs = if_else(n > 0, TRUE, FALSE)) %>% 
+  filter(year <= 2000)
+  
+plot <- countries_all_years %>%  
+  
   ggplot() + 
-    geom_sf(aes(fill = n, colour = n), size = 0) +
+    geom_sf(aes(fill = at_gs, colour = at_gs,
+                group = seq_along(iso)), 
+            size = 0) +
+  
+    # geom_text(aes(-125, -30), label = "Countries without\nany Grand Slam\nappearances\nshown in blue.", colour = "#374E83", size = 5, lineheight = 0.7) +
+  
+    scale_fill_manual(values = c("#374E83", "#E1D7D0")) +
+    scale_colour_manual(values = c("#374E83", "#E1D7D0")) +
+  
+    # scale_fill_gradient(low = "#1C1F4A", high = "white", trans = "log") +
+    # scale_colour_gradient(low = "#1C1F4A", high = "white", trans = "log") +
   
     theme_void() +
+    theme(plot.background = element_rect(fill = "#F8F7F7", colour = NA),
+          legend.position = "none",
+          text = element_text(family = "lato"),
+          plot.title = element_text(face = "bold", size = 20, hjust=0.5,
+                                    margin = margin(0,0,5,0), colour = "#2C3130"),
+          plot.subtitle = element_text(colour = "#374E83", size = 14, hjust=0.5,
+                                    margin = margin(0,0,5,0)),
+          plot.margin=unit(c(20,10,10,10), 'pt')) +
+  
     transition_time(year) +
+    #ease_aes('cubic-in-out') +
     #enter_recolor() + exit_recolor() +
-    ggtitle('{round(frame_time)}')
+    ggtitle('{floor(frame_time)}')
 
-countries_all_years
+
+fps <-  10
+years <- unique(countries_all_years$year)
+nframes <- fps * (max(years) - min(years))
+
+animate(plot, 
+        fps = 5,  duration = 20,
+        height = 500, width = 900, units = "px")
 
 anim_save("test.gif")
 # -----------------------------------------------------------------------------
 # working
 # -----------------------------------------------------------------------------
 
-  # enter_fade() + exit_fade()
-  
 
-ggplot(countries) +
-  geom_sf()
-
-gd_first_round_sf <- gs_first_round_gdp %>% 
-  #filter(!is.na(gdp_per_capita)) %>% 
-  distinct(year, country, iso) %>% 
-  left_join(countries %>% 
-              select(ISO_A3_EH), 
-            by = c("iso" = "ISO_A3_EH")) %>% 
-  st_as_sf()
-  #visdat::vis_miss() %>% 
-  #filter(is.na(SOVEREIGNT))
-
-  
-anim <- ggplot(gd_first_round_sf) + 
-    geom_sf() +
-    theme(text = element_text(family = "lato")) +
-      transition_time(year)
-  
-# anim <- anim +
-#   ggtitle('Now showing {current_frame}',
-#           subtitle = 'Frame {frame} of {nframes}')
-
-animate(anim, fps = 3)
-
-showtext::showtext_end()
-
-
-gd_first_round_sf %>% 
-  filter(year <= 1991) %>% 
-  ggplot() + geom_sf() +
-  transition_time(year)
-
-expand_grid(year = unique(gd_first_round_sf$year), 
-            country = unique(gd_first_round_sf$country)) %>% 
-  left_join(gd_first_round_sf) %>% 
-  st_as_sf() %>% 
-  mutate(present = if_else(is.na(iso), FALSE, TRUE)) %>% 
-  ggplot() + geom_sf(mapping = aes(fill = present)) +
-  transition_states(year)
   
 ```
 ```{r}
-
-polygons <- gd_first_round_sf[!st_is_empty(gd_first_round_sf), ] %>% 
-  as("Spatial") %>% 
-  fortify() %>% 
-  mutate(id = as.numeric(id))
-
-# %>% 
+#   # enter_fade() + exit_fade()
 #   
+# 
+# ggplot(countries) +
+#   geom_sf()
+# 
+# gd_first_round_sf <- gs_first_round_gdp %>% 
+#   #filter(!is.na(gdp_per_capita)) %>% 
+#   distinct(year, country, iso) %>% 
+#   left_join(countries %>% 
+#               select(ISO_A3_EH), 
+#             by = c("iso" = "ISO_A3_EH")) %>% 
+#   st_as_sf()
+#   #visdat::vis_miss() %>% 
+#   #filter(is.na(SOVEREIGNT))
+# 
+#   
+# anim <- ggplot(gd_first_round_sf) + 
+#     geom_sf() +
+#     theme(text = element_text(family = "lato")) +
+#       transition_time(year)
+#   
+# # anim <- anim +
+# #   ggtitle('Now showing {current_frame}',
+# #           subtitle = 'Frame {frame} of {nframes}')
+# 
+# animate(anim, fps = 3)
+# 
+# showtext::showtext_end()
+# 
+# 
+# gd_first_round_sf %>% 
+#   filter(year <= 1991) %>% 
+#   ggplot() + geom_sf() +
+#   transition_time(year)
+# 
+# expand_grid(year = unique(gd_first_round_sf$year), 
+#             country = unique(gd_first_round_sf$country)) %>% 
+#   left_join(gd_first_round_sf) %>% 
+#   st_as_sf() %>% 
+#   mutate(present = if_else(is.na(iso), FALSE, TRUE)) %>% 
+#   ggplot() + geom_sf(mapping = aes(fill = present)) +
+  transition_states(year)
+```
 
-gd_first_round_sf %>% 
-  mutate(id = row_number()) %>% 
-  st_drop_geometry() %>% 
-  left_join(polygons) %>% 
-  
-  ggplot() +
-    geom_polygon(mapping = aes(x = long, y = lat, group = group)) +
-    transition_states(year)
 
+```{r}
 
+# polygons <- gd_first_round_sf[!st_is_empty(gd_first_round_sf), ] %>% 
+#   as("Spatial") %>% 
+#   fortify() %>% 
+#   mutate(id = as.numeric(id))
+# 
+# # %>% 
+# #   
+# 
+# gd_first_round_sf %>% 
+#   mutate(id = row_number()) %>% 
+#   st_drop_geometry() %>% 
+#   left_join(polygons) %>% 
+#   
+#   ggplot() +
+#     geom_polygon(mapping = aes(x = long, y = lat, group = group)) +
+#     transition_states(year)
+# 
+# 
 
 ```
 
