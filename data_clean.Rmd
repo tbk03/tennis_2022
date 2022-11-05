@@ -770,6 +770,7 @@ income_deciles <- gdp_clean_ioc %>%
   ungroup() %>% 
   select(-c(country, gdp_per_capita))
 
+
 # add the newly calculated deciles into the tennis/gdp dataframe
 num_gs_entrants_inc_dec <- num_gs_entrants %>% 
   left_join(income_deciles) 
@@ -787,23 +788,28 @@ plot_top_n_perc <- function(df, decile){
   var_str <- str_c("top_", top_n_perc, "_perc")
   plot_title <- str_c("The top ", top_n_perc, "% highest income countries\n")
 
-  # test if each observation is for specified decile or a higher decile
-  df[, var_str] <- 
-    df$income_decile >= decile
   
+  df <- df %>% 
+    group_by(year) %>% 
+    mutate(is_top_n_perc = income_decile >= decile) %>% 
+    ungroup()
+  
+
   # calculate number of first round appearance for top n % of countries
   df_plot <- df %>%
     
     na.omit() %>%
     
-    group_by(year, !!sym(var_str)) %>%
+    group_by(year, is_top_n_perc) %>%
     summarise(num_first_rd = sum(num_first_rd)) %>%
-    ungroup() %>%
+    ungroup()
     
+  df_plot <-  df_plot %>%   
     group_by(year) %>%
     mutate(perc_first_rd = num_first_rd / sum(num_first_rd) * 100) %>% 
     ungroup() %>% 
-    filter(!!sym(var_str))
+    filter(is_top_n_perc)
+  
   
   # create the plot itself
   df_plot %>%
@@ -838,8 +844,6 @@ plot_top_n_perc <- function(df, decile){
 
 seq(10,1) %>% 
   map(~plot_top_n_perc(num_gs_entrants_inc_dec, .))
-
-
 ```
 
 ## 6. Producing the skelton of the chart (for editting in graphic design software)
@@ -867,7 +871,9 @@ num_gs_tourney_entrants <- results_gdp %>%
   left_join(income_deciles) %>% 
   
   # test if observation relates to a top 20% income country
-  mutate(top_20_perc = income_decile >= 9)
+  group_by(year) %>% # bug fix
+  mutate(top_20_perc = income_decile >= 9) %>% 
+  ungroup()
 
 num_gs_tourney_entrants
 
@@ -928,8 +934,7 @@ p <- df_plot %>%
                                      "#35469D", "#216E4B")) +
       
       # tidy up axis
-      scale_y_continuous(labels = scales::label_percent(scale = 1),
-                         limits = c(50,100)) +
+      scale_y_continuous(labels = scales::label_percent(scale = 1)) +
       scale_x_continuous(breaks = seq(1990, 2020, 5)) +
       coord_cartesian(expand = FALSE, clip = "off") +
       
