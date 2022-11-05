@@ -954,6 +954,8 @@ p
 
 ggsave("images/perc_top_20.svg", width = 297, height = 210, units = "mm")
 
+write_csv(num_gs_tourney_entrants, "./data/gs_entries_by_country.csv")
+
 ```
 ## 7. The final chart
 

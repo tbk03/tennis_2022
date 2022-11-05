@@ -1,0 +1,175 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(sf)
+library(gganimate)
+library(transformr)
+```
+
+```{r}
+
+library(showtext)
+
+font_add_google("Lato", family = "lato")
+
+showtext_auto()
+
+gs_first_round_gdp <- read_csv("../data/results_gdp.csv")
+gs_first_round_gdp
+
+gs_entries_by_country <- read_csv("../data/gs_entries_by_country.csv")
+gs_entries_by_country
+
+```
+## upwards and downward trends
+
+```{r}
+
+
+# -----------------------------------------------------------------------------
+# calculate number of first round entrants for each grand slam for each country 
+# each year
+# -----------------------------------------------------------------------------
+num_gs_tourney_entrants <- gs_first_round_gdp %>% 
+  
+  group_by(year, tourney_name, country) %>% 
+  mutate(num_first_rd = n()) %>% 
+  ungroup() %>%
+  
+  select(-c(id, name, tour)) %>% 
+  distinct() %>% 
+  arrange(year, tourney_name, desc(num_first_rd)) %>% 
+  
+  # add income deciles
+  left_join(income_deciles) %>% 
+  
+  # test if observation relates to a top 20% income country
+  mutate(top_20_perc = income_decile >= 9) %>% 
+  # group_by(year, top_20_perc) %>% 
+  # summarise(num_first_rd = sum(num_first_rd))
+  
+  na.omit() %>%
+    
+    group_by(year, tourney_name, top_20_perc) %>%
+    summarise(num_first_rd = sum(num_first_rd)) %>%
+    ungroup() %>%
+    
+    group_by(year, tourney_name) %>%
+    mutate(perc_first_rd = num_first_rd / sum(num_first_rd) * 100) %>% 
+    ungroup() %>% 
+    filter(top_20_perc)
+
+num_gs_tourney_entrants  
+  
+  
+
+  
+  
+  
+  View()
+  
+  distinct() %>% 
+  
+  count(year, top_20_perc)
+  
+  ggplot(aes(year, prop, fill = is_top_20_perc)) +
+  geom_area()
+
+  
+  
+
+```
+
+
+## How have top 20% countries changed or not?
+
+```{r}
+theme_set(theme_light())
+
+top_twenty_countries <- gs_entries_by_country %>% 
+  filter(top_20_perc) %>% 
+  count(year, country, wt = num_first_rd) %>% 
+  arrange(year, desc(n)) %>% 
+  group_by(country) %>% 
+  mutate(country_ave_n = mean(n)) %>% 
+  ungroup()
+
+country_ave_ns <- top_twenty_countries %>% 
+  distinct(country, country_ave_n)
+  
+# look at how many time the countries appear in the top twenty percent
+top_twenty_counts <- top_twenty_countries %>% 
+  count(country) %>% 
+  left_join(country_ave_ns) %>% 
+  arrange(desc(n), desc(country_ave_n))
+  
+
+# for ordering exploratory plot
+levels <- top_twenty_counts$country
+  
+ggplot(top_twenty_countries) +
+  geom_tile(aes(x = year, 
+                y = factor(country, levels = rev(levels)),
+                fill = n),
+            colour = "#F8F7F7") +
+  labs(x= NULL, y = NULL) +
+  
+  coord_equal() +
+  
+  scale_fill_gradient(low = "#D6DCE0", high = "#000DA8", trans = "log") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+
+
+
+  
+
+top_twenty_countries %>%
+  left_join(top_twenty_counts) %>% 
+  ggplot() +
+  geom_tile(aes(x = year, 
+                y = factor(country, levels = rev(levels)),
+                fill = n),
+            colour = "#F8F7F7") +
+  labs(x= NULL, y = NULL) +
+  
+  coord_equal() +
+  
+  scale_fill_gradient(low = "#D6DCE0", high = "#000DA8", trans = "log") +
+  theme_minimal() +
+  theme(legend.position = "none")
+  
+  
+  
+```
+## country affects
+```{r}
+
+gs_first_round_gdp %>% 
+
+  count(year, country, iso) %>% 
+  group_by(year) %>% 
+  mutate(perc_appear = n / sum(n)) %>% 
+  
+  filter(iso %in% c("USA", "FRA", "ESP")) %>% 
+  
+  ggplot() +
+  geom_line(aes(year, perc_appear, colour = country))
+```
+```{r}
+
+gs_first_round_gdp %>% 
+  count(year, country) %>% 
+  arrange(year, desc(n)) %>% 
+  group_by(year) %>% 
+  mutate(rank = rank(-n)) %>% 
+  
+  filter(rank == 1)
+
+```
+
