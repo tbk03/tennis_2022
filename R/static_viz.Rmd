@@ -29,6 +29,20 @@ gs_entries_by_country
 
 ```{r}
 
+gs_entries_by_country %>% 
+  mutate(top_20_perc = if_else(is.na(top_20_perc), FALSE, top_20_perc)) %>% 
+  group_by(year, top_20_perc) %>% 
+  summarise(num_first_rd = sum(num_first_rd)) %>% 
+  ungroup() %>% 
+  
+  group_by(year) %>% 
+  mutate(perc_first_round = num_first_rd / sum(num_first_rd)) %>% 
+  ungroup() %>% 
+  
+  ggplot() +
+  geom_area(aes(year, perc_first_round, fill = top_20_perc))
+
+
 
 # -----------------------------------------------------------------------------
 # calculate number of first round entrants for each grand slam for each country 
