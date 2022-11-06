@@ -267,6 +267,9 @@ After all that tidying, we have a single dataframe with all the results, men's a
 ```{r}
 head(all_results_tidy)
 ```
+```{r include=FALSE}
+write_csv(all_results_tidy, "data/all_results_tidy.csv")
+```
 
 
 ### 2.2. Focussing on the relevant data

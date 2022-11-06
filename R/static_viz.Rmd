@@ -5,9 +5,6 @@ output: html_notebook
 
 ```{r}
 library(tidyverse)
-library(sf)
-library(gganimate)
-library(transformr)
 ```
 
 ```{r}
@@ -18,18 +15,27 @@ font_add_google("Lato", family = "lato")
 
 showtext_auto()
 
-gs_first_round_gdp <- read_csv("../data/results_gdp.csv")
+gs_first_round_gdp <- read_csv("../data/results_gdp.csv") %>% 
+  #just look up until covid pandemic  (as will have distorted things)
+  filter(year < 2020)
+
 gs_first_round_gdp
 
-gs_entries_by_country <- read_csv("../data/gs_entries_by_country.csv")
-gs_entries_by_country
+gs_entries_by_country <- read_csv("../data/gs_entries_by_country.csv") %>% 
+  # just look up until covid pandemic  (as will have distorted things)
+  filter(year < 2020)
+
+gs_entries_by_country %>% 
+  filter(year == 2020)
 
 ```
-## upwards and downward trends
+## top 20% countries
+
+### upwards and downward trends
 
 ```{r}
 
-gs_entries_by_country %>% 
+p <- gs_entries_by_country %>% 
   mutate(top_20_perc = if_else(is.na(top_20_perc), FALSE, top_20_perc)) %>% 
   group_by(year, top_20_perc) %>% 
   summarise(num_first_rd = sum(num_first_rd)) %>% 
@@ -42,56 +48,8 @@ gs_entries_by_country %>%
   ggplot() +
   geom_area(aes(year, perc_first_round, fill = top_20_perc))
 
-
-
-# -----------------------------------------------------------------------------
-# calculate number of first round entrants for each grand slam for each country 
-# each year
-# -----------------------------------------------------------------------------
-num_gs_tourney_entrants <- gs_first_round_gdp %>% 
-  
-  group_by(year, tourney_name, country) %>% 
-  mutate(num_first_rd = n()) %>% 
-  ungroup() %>%
-  
-  select(-c(id, name, tour)) %>% 
-  distinct() %>% 
-  arrange(year, tourney_name, desc(num_first_rd)) %>% 
-  
-  # add income deciles
-  left_join(income_deciles) %>% 
-  
-  # test if observation relates to a top 20% income country
-  mutate(top_20_perc = income_decile >= 9) %>% 
-  # group_by(year, top_20_perc) %>% 
-  # summarise(num_first_rd = sum(num_first_rd))
-  
-  na.omit() %>%
-    
-    group_by(year, tourney_name, top_20_perc) %>%
-    summarise(num_first_rd = sum(num_first_rd)) %>%
-    ungroup() %>%
-    
-    group_by(year, tourney_name) %>%
-    mutate(perc_first_rd = num_first_rd / sum(num_first_rd) * 100) %>% 
-    ungroup() %>% 
-    filter(top_20_perc)
-
-num_gs_tourney_entrants  
-  
-  
-
-  
-  
-  
-  View()
-  
-  distinct() %>% 
-  
-  count(year, top_20_perc)
-  
-  ggplot(aes(year, prop, fill = is_top_20_perc)) +
-  geom_area()
+p 
+plotly::ggplotly(p)
 
   
   
@@ -99,7 +57,7 @@ num_gs_tourney_entrants
 ```
 
 
-## How have top 20% countries changed or not?
+### How have top 20% countries changed or not?
 
 ```{r}
 theme_set(theme_light())
@@ -145,23 +103,154 @@ ggplot(top_twenty_countries) +
 
 top_twenty_countries %>%
   left_join(top_twenty_counts) %>% 
+  mutate(n_bin = cut(n, breaks = c(0, 10, 20, 50, 100, Inf))) %>% 
   ggplot() +
   geom_tile(aes(x = year, 
                 y = factor(country, levels = rev(levels)),
-                fill = n),
+                fill = n_bin),
             colour = "#F8F7F7") +
   labs(x= NULL, y = NULL) +
   
   coord_equal() +
+  guides(fill = guide_legend(reverse=TRUE)) +
   
-  scale_fill_gradient(low = "#D6DCE0", high = "#000DA8", trans = "log") +
-  theme_minimal() +
-  theme(legend.position = "none")
+  # palette: https://gka.github.io/palettes/#/5|s|c5c8e2,000da8|ffffe0,ff005e,93003a|1|1
+  scale_fill_manual(values = c('#c5c8e2', '#a499d5', '#7f6bc6', '#553eb7', '#000da8')) +
+  
+  #scale_fill_gradient(low = "#D6DCE0", high = "#000DA8") +
+  scale_x_continuous(position = "top") +
+  theme_minimal() #+
+  #theme(legend.position = "none")
   
   
   
 ```
-## country affects
+### downward trend
+
+```{r}
+
+all_gs_entries_by_country <- gs_entries_by_country %>% 
+  
+  group_by(year, country) %>% 
+  mutate(num_first_rd_year = sum(num_first_rd)) %>% 
+  ungroup() %>% 
+  
+  select(-c(tourney_name, num_first_rd)) %>% 
+  distinct() %>% 
+  
+  group_by(year) %>% 
+  mutate(perc_first_round = num_first_rd_year / sum(num_first_rd_year)) %>% 
+  ungroup()
+
+
+gs_entries_top_20_perc <- all_gs_entries_by_country %>% 
+  filter(top_20_perc)
+
+grid <- expand_grid(year = unique(gs_entries_top_20_perc$year),
+                    country = unique(gs_entries_top_20_perc$country))
+  
+plot_df <- grid %>% 
+  left_join(gs_entries_top_20_perc) %>% 
+  mutate(perc_first_round = replace_na(perc_first_round, 0)) %>% 
+  filter(year <= 2008) %>% 
+  mutate(is_usa = country == "United States")
+  
+change_df <- plot_df %>% 
+  filter(year == max(year) | year == min(year)) %>% 
+  select(year, country, perc_first_round) %>% 
+  
+  pivot_wider(names_from = year,
+              values_from = perc_first_round,
+              values_fill = 0) %>% 
+  mutate(change = `2008` - `1990`,
+         fall = change < 0,
+         change_bin = cut(change, breaks = c(-Inf, -0.1, -0.02, 0.02, 0.1, Inf))) %>% 
+  arrange(change)
+
+plot_df_1 <- plot_df %>% 
+  left_join(change_df) %>% 
+  group_by(country) %>% 
+  mutate(ave_num_first_round = mean(num_first_rd_year, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  # mutate(country = fct_reorder(country, ave_num_first_round, change,
+  #                              .fun = "median"))
+  arrange(fall, desc(change)) %>% 
+  mutate(country = factor(country, levels = unique(country)),
+         )
+
+
+#visdat::vis_miss(plot_df, warn_large_data = FALSE)
+
+p <- ggplot(plot_df_1) +
+  geom_area(aes(year, perc_first_round,
+                group = country,
+                fill = change_bin),
+            colour = "grey80", size = 0.2) +
+  #scale_fill_gradient2(low = "#C94A54", mid = "white", high = "#35469D") #+
+  # reds from https://gka.github.io/palettes/#/8|s|c94a54,fffff0|ffffe0,ff005e,93003a|1|1
+  # blue from https://gka.github.io/palettes/#/8|s|35469d,fffff0|ffffe0,ff005e,93003a|1|1
+  scale_fill_manual(values = c("#c94a54", "#efb3aa", "#fffff0", "#aeabcd"))
+  #facet_wrap(~is_usa)
+
+p
+plotly::ggplotly(p)
+
+```
+
+### upward trend
+
+```{r}
+plot_df <- grid %>% 
+  left_join(gs_entries_top_20_perc) %>% 
+  mutate(perc_first_round = replace_na(perc_first_round, 0)) %>% 
+  filter(year > 2008)
+
+change_df <- plot_df %>% 
+  filter(year == max(year) | year == min(year)) %>% 
+  select(year, country, perc_first_round) %>% 
+  
+  pivot_wider(names_from = year,
+              values_from = perc_first_round,
+              values_fill = 0) %>% 
+  mutate(change = `2019` - `2009`,
+         fall = change < 0,
+         change_bin = cut(change, breaks = c(-Inf, -0.1, -0.02, 0.02, 0.1, Inf))) %>% 
+  arrange(change)
+
+countries_of_int <-  c("United States", "France", "Sweden", "Australia", "Spain")
+
+plot_df_1 <- plot_df %>% 
+  left_join(change_df) %>% 
+  mutate(country = if_else(country %in% countries_of_int, country, "Other")) %>% 
+  group_by(country, year) %>%
+  summarise(perc_first_round = sum(perc_first_round)) %>% 
+  ungroup()
+  
+facet_order <- c("United States", "Australia", "Sweden", "France", "Spain", "Other")
+
+# annotation df
+annotation_df <- plot_df_1 %>% 
+  mutate(label = round(perc_first_round * 100, 1),
+         num_appearances = round(perc_first_round * 256)) %>% 
+  filter(year == max(plot_df_1$year)|
+           year == min(plot_df_1$year))
+
+p <- ggplot(plot_df_1,
+            aes(year, perc_first_round)) +
+  geom_area(aes(group = country),
+            colour = "grey80", size = 0.2) +
+  ggrepel::geom_text_repel(data = annotation_df,
+                           mapping = aes(label = num_appearances)) +
+  
+  facet_wrap(~factor(country, levels = facet_order))
+
+p
+```
+
+
+
+
+### country affects
 ```{r}
 
 gs_first_round_gdp %>% 
@@ -177,13 +266,71 @@ gs_first_round_gdp %>%
 ```
 ```{r}
 
-gs_first_round_gdp %>% 
+top_3 <- gs_first_round_gdp %>% 
   count(year, country) %>% 
   arrange(year, desc(n)) %>% 
   group_by(year) %>% 
   mutate(rank = rank(-n)) %>% 
+  ungroup() %>% 
   
-  filter(rank == 1)
+  filter(rank == 1 | rank == 2 | rank == 3)
 
+
+
+```
+
+## Countries outside top twenty percent
+
+```{r}
+gs_entries_the_other_80 <- gs_entries_by_country %>% 
+  filter(!top_20_perc) %>% 
+  count(year, country, wt = num_first_rd)
+
+grid <- expand_grid(country = unique(gs_entries_the_other_80$country),
+                    year = unique(gs_entries_the_other_80$year))
+
+plot_df <- grid %>%
+  left_join(gs_entries_the_other_80) %>%
+  mutate(n = replace_na(n, 0))
+
+p <- ggplot(plot_df,
+       aes(year, n, group = country)) +
+  geom_line()
+
+p
+plotly::ggplotly(p)
+
+p <- ggplot(plot_df,
+       aes(year, n, fill = country)) +
+  geom_area()
+
+p
+plotly::ggplotly(p)
+
+```
+
+```{r}
+gs_entries_by_country %>% 
+  filter(str_detect(str_to_lower(country), "cz"))
+
+```
+
+```{r}
+countries_of_int <- c("Russia", "Argentina", "Czechia")
+
+plot_df %>% 
+  
+  mutate(colour = if_else(country %in% countries_of_int,
+                          country, "other")) %>% 
+  
+  filter(!(country == "Czechia" & year >= 2017)) %>% 
+  
+  ggplot(aes(year, n, 
+             colour = colour, 
+             group = country)) +
+    geom_line() +
+  
+    scale_colour_manual(values = c("#A7BCD6", "#35469D", "grey95", "#C94A54")) +
+    theme()
 ```
 
