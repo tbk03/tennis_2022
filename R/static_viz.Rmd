@@ -328,9 +328,126 @@ plot_df %>%
   ggplot(aes(year, n, 
              colour = colour, 
              group = country)) +
-    geom_line() +
+    geom_step() +
   
     scale_colour_manual(values = c("#A7BCD6", "#35469D", "grey95", "#C94A54")) +
     theme()
+```
+
+## Bottom 50 percent
+```{r}
+bottom_50_perc <- gs_entries_by_country %>% 
+  filter(income_decile <= 5)
+
+# num countries with first round appearances 
+bottom_50_perc %>% 
+  distinct(year, country) %>% 
+  count(year) %>% 
+  ggplot() +
+    geom_col(aes(year, n))
+
+# countries from bottom 50 percent with most appearances in first round 1990 - 2019
+top_n <- 5
+
+top_n_countries <- bottom_50_perc %>% 
+  count(country) %>% 
+  slice_max(order_by = n, n = top_n) %>% 
+  .$country
+
+bottom_50_perc %>% 
+  distinct(year,country) %>% 
+  filter(year == max(year)) %>% 
+  .$country
+
+plot_df <- bottom_50_perc %>% 
+  count(year, country) %>% 
+  mutate(country = if_else(country %in% top_n_countries,
+                           country,
+                           "Other")) %>% 
+  group_by(year, country) %>% 
+  summarise(n = sum(n))
+
+ggplot(plot_df) +
+  geom_col(aes(year, n, fill = country))
+```
+
+```{r}
+bottom_50_perc_country_counts <- bottom_50_perc %>% 
+  count(year, country, wt = num_first_rd) %>% 
+  group_by(country) %>% 
+  mutate(country_ave_n = mean(n, na.rm = TRUE)) %>% 
+  ungroup()
+
+
+# look at how many times the countries appear in the bottom fifty percent
+bottom_50_summary <- bottom_50_perc_country_counts %>% 
+  count(country) %>% 
+  rename(total_n = n) %>% 
+  left_join(distinct(
+              bottom_50_perc_country_counts,
+              country,
+              country_ave_n
+              )) %>% 
+  arrange(desc(total_n), desc(country_ave_n))
+
+# bottom_50_perc_country_counts <- bottom_50_perc_country_counts %>% 
+#   left_join(bottom_50_summary)
+  
+# create a grid to see where countries have moved out of bottom 50 perc
+grid <-  expand_grid(year = unique(bottom_50_perc_country_counts$year),
+                     country = unique(bottom_50_perc_country_counts$country))
+plot_df <- grid %>% 
+  left_join(bottom_50_perc_country_counts)
+
+# deciles by year
+top_50_countries_by_year <- gs_entries_by_country %>% 
+  distinct(year, country, income_decile) %>% 
+  filter(income_decile > 5)
+
+check_top_50 <- function(year, country){
+
+  selector <- top_50_countries_by_year$year == 2010 & 
+              top_50_countries_by_year$country == country
+  
+  res <- top_50_countries_by_year[selector, ]
+  
+  if(nrow(res) == 0){
+    return(FALSE)
+    }
+  else {
+    return(res[[1,"income_decile"]] > 5)
+  }
+}
+
+check_top_50(1991, "United States")
+
+plot_df_1 <- plot_df %>% 
+  mutate(in_top_50 = map2_lgl(year, country, ~check_top_50(.x,.y)),
+         n = if_else(is.na(n) & in_top_50,
+                     -1, n),
+         n = replace_na(n, 0),
+         bin_n = cut(n, breaks = c(-Inf, -1e-10,0,1e10, 5, 10, 20, Inf)))
+
+
+# for ordering exploratory plot
+levels <- rev(bottom_50_summary$country)
+
+ggplot(plot_df_1) +
+  geom_tile(aes(x = year, 
+                y = factor(country, levels = levels),
+                fill = bin_n),
+            colour = "#E7E4E5") +
+  labs(x= NULL, y = NULL) +
+  
+  coord_equal() +
+  
+  # https://gka.github.io/palettes/#/5|s|ffffff,35469d|ffffe0,ff005e,93003a|1|1
+  scale_fill_manual(values = c("#E7E4E5", "white", '#cfcde7', '#9f9dce', '#6e70b6', '#35469d')) +
+  
+  #scale_fill_gradient(low = "#D6DCE0", high = "#000DA8") +
+  theme_minimal() +
+  theme()
+
+ggsave("test_out.svg")
 ```
 
