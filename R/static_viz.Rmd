@@ -10,10 +10,11 @@ library(tidyverse)
 ```{r}
 
 library(showtext)
+theme_set(theme_light())
 
 font_add_google("Lato", family = "lato")
 
-showtext_auto()
+#showtext_auto()
 
 gs_first_round_gdp <- read_csv("../data/results_gdp.csv") %>% 
   #just look up until covid pandemic  (as will have distorted things)
@@ -35,7 +36,7 @@ gs_entries_by_country %>%
 
 ```{r}
 
-p <- gs_entries_by_country %>% 
+plot_df <- gs_entries_by_country %>% 
   mutate(top_20_perc = if_else(is.na(top_20_perc), FALSE, top_20_perc)) %>% 
   group_by(year, top_20_perc) %>% 
   summarise(num_first_rd = sum(num_first_rd)) %>% 
@@ -43,24 +44,31 @@ p <- gs_entries_by_country %>%
   
   group_by(year) %>% 
   mutate(perc_first_round = num_first_rd / sum(num_first_rd)) %>% 
-  ungroup() %>% 
+  ungroup()
   
-  ggplot() +
-  geom_area(aes(year, perc_first_round, fill = top_20_perc))
+p <-  ggplot(plot_df) +
+  geom_area(aes(year, perc_first_round, fill = top_20_perc)) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1L),
+                       expand = c(0,0)) +
+    scale_x_continuous(expand = c(0,0), 
+                       breaks=c(1990,1995,2000,2005,2010,2015,2019)) +
+    coord_cartesian(clip = 'off') +
+  labs(x = NULL, y = NULL) +
+  theme(legend.position = "none",
+        plot.margin = margin(25,25,25,25)) 
 
 p 
-plotly::ggplotly(p)
+#plotly::ggplotly(p)
 
+ggsave("../images/all_gs.svg", units = "mm", width = 600, height = 325)
   
-  
-
+filter(plot_df, top_20_perc)
 ```
 
 
 ### How have top 20% countries changed or not?
 
 ```{r}
-theme_set(theme_light())
 
 top_twenty_countries <- gs_entries_by_country %>% 
   filter(top_20_perc) %>% 

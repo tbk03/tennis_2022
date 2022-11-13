@@ -1,6 +1,10 @@
 # local datasets
 /data/*
 
+# design and image files (getting too big)
+/design_files/*
+/images/*
+
 # notebook html files
 *.nb.html
 
