@@ -85,53 +85,88 @@ country_ave_ns <- top_twenty_countries %>%
 top_twenty_counts <- top_twenty_countries %>% 
   count(country) %>% 
   left_join(country_ave_ns) %>% 
-  arrange(desc(n), desc(country_ave_n))
+  arrange(desc(n), desc(country_ave_n)) %>% 
+  rename(years_top_20 = n)
   
 
 # for ordering exploratory plot
 levels <- top_twenty_counts$country
   
-ggplot(top_twenty_countries) +
-  geom_tile(aes(x = year, 
-                y = factor(country, levels = rev(levels)),
-                fill = n),
-            colour = "#F8F7F7") +
-  labs(x= NULL, y = NULL) +
-  
-  coord_equal() +
-  
-  scale_fill_gradient(low = "#D6DCE0", high = "#000DA8", trans = "log") +
-  theme_minimal() +
-  theme(legend.position = "none")
+# ggplot(top_twenty_countries) +
+#   geom_tile(aes(x = year, 
+#                 y = factor(country, levels = rev(levels)),
+#                 fill = n),
+#             colour = "#F8F7F7") +
+#   labs(x= NULL, y = NULL) +
+#   
+#   coord_equal() +
+#   
+#   scale_fill_gradient(low = "#D6DCE0", high = "#000DA8", trans = "log") +
+#   theme_minimal() +
+#   theme(legend.position = "none")
 
 
+# create a grid to see where countries have moved out of top 20 perc
+grid <-  expand_grid(year = unique(top_twenty_countries$year),
+                     country = unique(top_twenty_countries$country))
+plot_df <- grid %>% 
+  left_join(top_twenty_countries)
+
+# deciles by year
+bottom_80_countries_by_year <- gs_entries_by_country %>% 
+  distinct(year, country, income_decile) %>% 
+  filter(income_decile < 9)
+
+check_bottom_80 <- function(year, country){
+
+  selector <- bottom_80_countries_by_year$year == year & 
+              bottom_80_countries_by_year$country == country
+  
+  res <- bottom_80_countries_by_year[selector, ]
+  
+  if(nrow(res) == 0){
+    return(FALSE)
+    }
+  else {
+    return(res[[1,"income_decile"]] < 9)
+  }
+}
+
+check_bottom_80(1990, "Nigeria")
+
+plot_df_1 <- plot_df %>% 
+  mutate(in_bottom_80 = map2_lgl(year, country, ~check_bottom_80(.x,.y)),
+         n = if_else(is.na(n) & in_bottom_80,
+                     -1, n),
+         n = replace_na(n, 0),
+         bin_n = cut(n, breaks = c(-Inf, -1e-10,0,1e10, 10, 50, 100, Inf)))  
 
 
+p <-   ggplot(plot_df_1) +
+    geom_tile(aes(x = year, 
+                  y = factor(country, levels = rev(levels)),
+                  fill = bin_n),
+              colour = "#F8F7F7") +
+    labs(x= NULL, y = NULL) +
+    
+    coord_equal() +
+    guides(fill = guide_legend(reverse=TRUE)) +
+    
+    
+      # https://gka.github.io/palettes/#/5|s|ffffff,35469d|ffffe0,ff005e,93003a|1|1
+  scale_fill_manual(values = c("#E7E4E5", "white", '#cfcde7', '#9f9dce', '#6e70b6', '#35469d')) +
+    
+    #scale_fill_gradient(low = "#D6DCE0", high = "#000DA8") +
+    scale_x_continuous(position = "top") +
+    theme_minimal()
   
+p
+ggsave("../images/image_4.svg")
 
-top_twenty_countries %>%
-  left_join(top_twenty_counts) %>% 
-  mutate(n_bin = cut(n, breaks = c(0, 10, 20, 50, 100, Inf))) %>% 
-  ggplot() +
-  geom_tile(aes(x = year, 
-                y = factor(country, levels = rev(levels)),
-                fill = n_bin),
-            colour = "#F8F7F7") +
-  labs(x= NULL, y = NULL) +
-  
-  coord_equal() +
-  guides(fill = guide_legend(reverse=TRUE)) +
-  
-  # palette: https://gka.github.io/palettes/#/5|s|c5c8e2,000da8|ffffe0,ff005e,93003a|1|1
-  scale_fill_manual(values = c('#c5c8e2', '#a499d5', '#7f6bc6', '#553eb7', '#000da8')) +
-  
-  #scale_fill_gradient(low = "#D6DCE0", high = "#000DA8") +
-  scale_x_continuous(position = "top") +
-  theme_minimal() #+
-  #theme(legend.position = "none")
-  
-  
-  
+# a quick test
+gs_entries_by_country %>% 
+  filter(country == "Israel") %>% 
+  distinct(year, income_decile)
 ```
 ### downward trend
 
@@ -414,7 +449,7 @@ top_50_countries_by_year <- gs_entries_by_country %>%
 
 check_top_50 <- function(year, country){
 
-  selector <- top_50_countries_by_year$year == 2010 & 
+  selector <- top_50_countries_by_year$year == year & 
               top_50_countries_by_year$country == country
   
   res <- top_50_countries_by_year[selector, ]
