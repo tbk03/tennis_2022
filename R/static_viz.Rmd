@@ -232,10 +232,25 @@ p <- ggplot(plot_df_1) +
   #scale_fill_gradient2(low = "#C94A54", mid = "white", high = "#35469D") #+
   # reds from https://gka.github.io/palettes/#/8|s|c94a54,fffff0|ffffe0,ff005e,93003a|1|1
   # blue from https://gka.github.io/palettes/#/8|s|35469d,fffff0|ffffe0,ff005e,93003a|1|1
-  scale_fill_manual(values = c("#c94a54", "#efb3aa", "#fffff0", "#aeabcd"))
+    scale_fill_manual(values = c("#c94a54", "#efb3aa", "#fffff0", "#aeabcd")) +
+  
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1L),
+                       breaks = c(seq(0,0.8,0.1)),
+                       expand = expansion(mult = c(0, .1))) +
+  
+    scale_x_continuous(expand = c(0,0), 
+                       breaks=c(1990,1995,2000,2005,2008)) +
+  
+    # coord_cartesian(clip = 'off') +
+  labs(x = NULL, y = NULL) +
+  theme(legend.position = "none",
+        plot.margin = margin(25,25,25,25)) 
   #facet_wrap(~is_usa)
 
 p
+
+ggsave("../images/image_5.svg", units = "mm", width = 500, height = 300)
+
 plotly::ggplotly(p)
 
 ```
