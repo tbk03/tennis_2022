@@ -257,9 +257,36 @@ p <- ggplot(plot_df_1) +
 
 p
 
-ggsave("../images/image_5.svg", units = "mm", width = 500, height = 300)
+ggsave("../images/image_5.svg", units = "mm", width = 525, height = 350)
 
 plotly::ggplotly(p)
+
+
+levels(plot_df_1$change_bin)
+
+# get data points for plot annotation
+plot_df_1 %>% 
+  filter(country %in% c("United States", "Australia", "Sweden")) %>% 
+  group_by(year) %>% 
+  summarise(perc_first_round_tot = sum(perc_first_round))
+
+plot_df_1 %>% 
+  filter(country == "United States") %>% 
+  group_by(year) %>% 
+  summarise(perc_first_round_tot = sum(perc_first_round))
+
+# get players for annotation
+
+get_players <- function(country_str, year_int){
+  gs_first_round_gdp %>% 
+  filter(country == country_str & year == year_int) %>% 
+  distinct(name)
+}
+
+get_players("United States", 1990)
+get_players("United States", 2008)
+
+
 
 ```
 
