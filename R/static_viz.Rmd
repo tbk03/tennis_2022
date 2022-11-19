@@ -194,21 +194,6 @@ all_gs_entries_by_country %>%
   group_by(year, top_20_perc) %>% 
   summarise(perc_first_round = sum(perc_first_round))
 
-# *****************************************************************************
-# remainder of code in this chunk needs fixing
-# *****************************************************************************
-
-plot_df <- gs_entries_by_country %>% 
-  mutate(top_20_perc = if_else(is.na(top_20_perc), FALSE, top_20_perc)) %>% 
-  group_by(year, top_20_perc) %>% 
-  summarise(num_first_rd = sum(num_first_rd)) %>% 
-  ungroup() %>% 
-  
-  group_by(year) %>% 
-  mutate(perc_first_round = num_first_rd / sum(num_first_rd)) %>% 
-  ungroup()
-
-
 gs_entries_top_20_perc <- all_gs_entries_by_country %>% 
   filter(top_20_perc)
 
@@ -275,10 +260,6 @@ p
 ggsave("../images/image_5.svg", units = "mm", width = 500, height = 300)
 
 plotly::ggplotly(p)
-
-plot_df_1 %>% 
-  group_by(year) %>% 
-  summarise(perc_first_round = sum(perc_first_round))
 
 ```
 
