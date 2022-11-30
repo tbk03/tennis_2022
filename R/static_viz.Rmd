@@ -358,6 +358,34 @@ gs_first_round_gdp %>%
   geom_line(aes(year, perc_appear, colour = country))
 ```
 ```{r}
+country_group_counts <- gs_first_round_gdp %>% 
+  count(year, country, iso) %>% 
+  mutate(colour = if_else(
+    iso %in% c("USA", "FRA", "ESP"), iso, "other"
+  )) 
+
+country_group_counts %>% 
+  
+  ggplot() +
+  geom_line(aes(year, n, group = country, colour = colour)) +
+      scale_y_continuous(expand = c(0,0)) +
+    scale_x_continuous(expand = c(0,0), 
+                       breaks=c(1990,1995,2000,2005,2010,2015,2019)) +
+    coord_cartesian(clip = 'off') +
+  labs(x = NULL, y = NULL) +
+  theme(legend.position = "none",
+        plot.margin = margin(25,25,25,25),
+        panel.grid.minor = element_blank()) 
+
+ggsave("../images/image_7.svg", units = "mm", width = 525, height = 350)
+
+country_group_counts %>% 
+  filter(iso == "USA")
+```
+
+
+
+```{r}
 
 top_3 <- gs_first_round_gdp %>% 
   count(year, country) %>% 
@@ -421,10 +449,19 @@ plot_df %>%
   ggplot(aes(year, n, 
              colour = colour, 
              group = country)) +
-    geom_step() +
+    geom_line() +
   
     scale_colour_manual(values = c("#A7BCD6", "#35469D", "grey95", "#C94A54")) +
-    theme()
+          scale_y_continuous(expand = c(0,0)) +
+    scale_x_continuous(expand = c(0,0), 
+                       breaks=c(1990,1995,2000,2005,2010,2015,2019)) +
+    coord_cartesian(clip = 'off') +
+  labs(x = NULL, y = NULL) +
+  theme(legend.position = "none",
+        plot.margin = margin(25,25,25,25),
+        panel.grid.minor = element_blank()) 
+
+ggsave("../images/image_8.svg", units = "mm", width = 525, height = 350)
 ```
 
 ## Bottom 50 percent
@@ -437,7 +474,22 @@ bottom_50_perc %>%
   distinct(year, country) %>% 
   count(year) %>% 
   ggplot() +
-    geom_col(aes(year, n))
+    geom_col(aes(year, n), width = 0.8) +
+            scale_y_continuous(expand = expansion(mult = c(0, .1))) +
+    scale_x_continuous(expand = c(0,0), 
+                       breaks=c(1990,1995,2000,2005,2010,2015,2019)) +
+    coord_cartesian(clip = 'off') +
+  labs(x = NULL, y = NULL) +
+  theme(legend.position = "none",
+        plot.margin = margin(25,25,25,25),
+        panel.grid.minor = element_blank()) 
+
+ggsave("../images/image_9.svg", units = "mm", width = 525, height = 350)
+
+# for annotation
+bottom_50_perc %>% 
+  distinct(year, country) %>% 
+  filter(year == 1990 | year == 2013)
 
 # countries from bottom 50 percent with most appearances in first round 1990 - 2019
 top_n <- 5
