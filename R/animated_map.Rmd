@@ -41,8 +41,8 @@ countries_all_years <- countries %>%
   left_join(gs_first_round_gdp %>% 
               count(year, country, iso)) %>% 
   mutate(n = if_else(is.na(n), 0L, n),
-         at_gs = if_else(n > 0, TRUE, FALSE)) %>% 
-  filter(year <= 1991)
+         at_gs = if_else(n > 0, TRUE, FALSE)) #%>% 
+  #filter(year <= 1991)
   
 plot <- countries_all_years %>%  
   
@@ -53,21 +53,22 @@ plot <- countries_all_years %>%
   
     # geom_text(aes(-125, -30), label = "Countries without\nany Grand Slam\nappearances\nshown in blue.", colour = "#374E83", size = 5, lineheight = 0.7) +
   
-    scale_fill_manual(values = c("#374E83", "#E1D7D0")) +
-    scale_colour_manual(values = c("#374E83", "#E1D7D0")) +
+    # c(red, grey)
+    scale_fill_manual(values = c("#C94A54", "#DADADA")) +
+    scale_colour_manual(values = c("#C94A54", "#DADADA")) +
   
     # scale_fill_gradient(low = "#1C1F4A", high = "white", trans = "log") +
     # scale_colour_gradient(low = "#1C1F4A", high = "white", trans = "log") +
   
     theme_void() +
-    theme(plot.background = element_rect(fill = "#F8F7F7", colour = NA),
+    theme(plot.background = element_rect(fill = "#E9E9E9", colour = NA),
           legend.position = "none",
           text = element_text(family = "lato"),
-          plot.title = element_text(face = "bold", size = 20, hjust=0.5,
+          plot.title = element_text(face = "bold", size = 45, hjust=0.5,
                                     margin = margin(0,0,5,0), colour = "#2C3130"),
           plot.subtitle = element_text(colour = "#374E83", size = 14, hjust=0.5,
                                     margin = margin(0,0,5,0)),
-          plot.margin=unit(c(20,10,10,10), 'pt')) +
+          plot.margin=unit(c(50,30,30,30), 'pt')) +
   
     transition_time(year) +
     #ease_aes('cubic-in-out') +
@@ -83,8 +84,8 @@ plot <- countries_all_years %>%
 #         height = 500, width = 900, units = "px")
 
 animate(plot,
-        fps = 5,  duration = 2,
-        height = 500, width = 900, units = "px")
+        fps = 5,  duration = 30,
+        height = 1440, width = 2560, units = "px")
 
 anim_save("test.gif")
 # -----------------------------------------------------------------------------

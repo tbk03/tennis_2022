@@ -514,6 +514,11 @@ plot_df <- bottom_50_perc %>%
 
 ggplot(plot_df) +
   geom_col(aes(year, n, fill = country))
+
+# for story text
+bottom_50_perc %>% 
+  distinct(year, country) %>% 
+  filter(year == 2003)
 ```
 
 ```{r}
@@ -533,7 +538,7 @@ bottom_50_summary <- bottom_50_perc_country_counts %>%
               country,
               country_ave_n
               )) %>% 
-  arrange(desc(total_n), desc(country_ave_n))
+  arrange(desc(country_ave_n))
 
 # bottom_50_perc_country_counts <- bottom_50_perc_country_counts %>% 
 #   left_join(bottom_50_summary)
@@ -594,5 +599,21 @@ ggplot(plot_df_1) +
   theme()
 
 ggsave("test_out.svg")
+```
+```{r}
+library(ggridges)
+
+bottom_50_countries <- bottom_50_summary %>% 
+  slice_head(n = 10) %>% 
+  .$country
+
+gs_first_round_gdp %>% 
+  filter(country %in% bottom_50_countries) %>% 
+
+  ggplot() +
+    ggridges::geom_density_ridges(mapping = aes(year, 
+                                      factor(country, levels = levels),
+                                      height = stat(density)),
+                                  stat = "density")
 ```
 
