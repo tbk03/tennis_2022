@@ -1,72 +1,127 @@
 ---
-title: "R Notebook"
-output: html_notebook
+title: "Producing charts for 'The Changing Fortunes of the Richest Countries in Grand Slam Tennis'"
+output: 
+  rmdformats::robobook:
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    gallery: false
+    highlight: tango
 ---
 
-```{r}
-library(tidyverse)
+![](images/image_2.jpg)
+
+**By:** Dr. Chris Martin
+
+**Tools / packages used:** R, R Markdown, `ggplot2`, tidyverse (inc. `dplyr` and `tidyr`), `plotly`.
+
+**Techniques used:** exploratory data analysis, functional programming (`purrr` package), data visualisation, data cleaning/reshaping/manipulation.
+
+**Chart types used:** area chart, line chart, bar chart, stacked bar chart, small multiples, heatmap, ridge chart, interactive charts (with `ggplotly`).
+
+**Source data:** To produce the charts, I needed data on the women's and men's singles entrants for each Grand Slam tournament since 1990. This came from the excellent [Tennis Abstract](https://github.com/JeffSackmann).
+
+This notebook produces the static data visualisations which features in my data storytelling project: *The Changing Fortunes of the Richest Countries in Grand Slam Tennis*. You can read the full story [on my website](https://chris-martin-information-design.netlify.app/short-data-stories/tennis).
+
+## A note on my data visualistion workflow
+
+The chart produced in this notebook are 'skeletons' with fairly minimal styling, but all the key structural components in places. The chart are exported from this notebook as svgs. These can are then editted - adding textures, photos, annotations etc. - using graphic design software to create the final versions.
+
+## Setting up the notebook
+
+```{r, warning = FALSE, message = FALSE}
+# import packages
+library(tidyverse)  # for data manipulation and viz
+library(knitr)      # for formatting tables
+
+# set default theme for exploratory plots
+theme_set(theme_light())  # using a minimal theme to make it easier to edit 
+                          # the plots in graphic design software later on
+
+# set default R markdown chunk options
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
+## Reading in the data
+
+The data is read in from csvs produced in `data_clean.Rmd`, a lot of the data preparation was done in that notebook.
+
 ```{r}
-
-library(showtext)
-theme_set(theme_light())
-
-font_add_google("Lato", family = "lato")
-
-#showtext_auto()
-
 gs_first_round_gdp <- read_csv("../data/results_gdp.csv") %>% 
   #just look up until covid pandemic  (as will have distorted things)
   filter(year < 2020)
 
-gs_first_round_gdp
+# check data looks as expected
+gs_first_round_gdp %>% 
+  head() %>% 
+  kable()
 
 gs_entries_by_country <- read_csv("../data/gs_entries_by_country.csv") %>% 
   # just look up until covid pandemic  (as will have distorted things)
   filter(year < 2020)
 
+# check data looks as expected
 gs_entries_by_country %>% 
-  filter(year == 2020)
-
+  head() %>% 
+  kable()
 ```
-## top 20% countries
 
-### upwards and downward trends
+## How have the richest 20% of countries performed at Grand Slams (1990 - 2019)?
+
+This section focuses on how well the richest 20% of countries performed at Grand Slams (1990 - 2019). The metric used for a country's performance is how many players they had appearing in the first round of Grand Slam tennis tournaments.
+
+### The overall trend
+
+The performance of the richest countries declined 1900 to 2008, and then picked up again a little.
 
 ```{r}
-
+# ----------------------------------------------------------------------------
+# Reshape data for plotting
+# ----------------------------------------------------------------------------
 plot_df <- gs_entries_by_country %>% 
+  
+  # looked performance for two groups of countries
+  # top 20% richest countries and the rest
   mutate(top_20_perc = if_else(is.na(top_20_perc), FALSE, top_20_perc)) %>% 
   group_by(year, top_20_perc) %>% 
   summarise(num_first_rd = sum(num_first_rd)) %>% 
-  ungroup() %>% 
+  ungroup() %>%
   
+  # calculate proportions from counts
   group_by(year) %>% 
   mutate(perc_first_round = num_first_rd / sum(num_first_rd)) %>% 
   ungroup()
-  
+
+# ----------------------------------------------------------------------------
+# Produce the plot
+# ----------------------------------------------------------------------------  
 p <-  ggplot(plot_df) +
+  
+  # core chart
   geom_area(aes(year, perc_first_round, fill = top_20_perc)) +
+  
+  # format axis
     scale_y_continuous(labels = scales::percent_format(accuracy = 1L),
                        expand = c(0,0)) +
     scale_x_continuous(expand = c(0,0), 
                        breaks=c(1990,1995,2000,2005,2010,2015,2019)) +
     coord_cartesian(clip = 'off') +
-  labs(x = NULL, y = NULL) +
-  theme(legend.position = "none",
-        plot.margin = margin(25,25,25,25)) 
+  
+  # tidy up presentation
+    labs(x = NULL, y = NULL) +
+    theme(legend.position = "none",
+          plot.margin = margin(25,25,25,25)) 
 
 p 
-#plotly::ggplotly(p)
 
+# ----------------------------------------------------------------------------
+# Export the plot for editing
+# ----------------------------------------------------------------------------
 ggsave("../images/all_gs.svg", units = "mm", width = 600, height = 325)
-  
-filter(plot_df, top_20_perc)
+
 ```
 
-
-### How have top 20% countries changed or not?
+### Is the overall trend driven by the composition of 20% richest countries changing over time?
 
 ```{r}
 
@@ -168,6 +223,7 @@ gs_entries_by_country %>%
   filter(country == "Israel") %>% 
   distinct(year, income_decile)
 ```
+
 ### downward trend
 
 ```{r}
@@ -340,10 +396,8 @@ p <- ggplot(plot_df_1,
 p
 ```
 
-
-
-
 ### country affects
+
 ```{r}
 
 gs_first_round_gdp %>% 
@@ -357,6 +411,7 @@ gs_first_round_gdp %>%
   ggplot() +
   geom_line(aes(year, perc_appear, colour = country))
 ```
+
 ```{r}
 country_group_counts <- gs_first_round_gdp %>% 
   count(year, country, iso) %>% 
@@ -382,8 +437,6 @@ ggsave("../images/image_7.svg", units = "mm", width = 525, height = 350)
 country_group_counts %>% 
   filter(iso == "USA")
 ```
-
-
 
 ```{r}
 
@@ -465,6 +518,7 @@ ggsave("../images/image_8.svg", units = "mm", width = 525, height = 350)
 ```
 
 ## Bottom 50 percent
+
 ```{r}
 bottom_50_perc <- gs_entries_by_country %>% 
   filter(income_decile <= 5)
@@ -600,6 +654,7 @@ ggplot(plot_df_1) +
 
 ggsave("test_out.svg")
 ```
+
 ```{r}
 library(ggridges)
 
@@ -616,4 +671,3 @@ gs_first_round_gdp %>%
                                       height = stat(density)),
                                   stat = "density")
 ```
-
