@@ -1,38 +1,83 @@
 ---
-title: "R Notebook"
-output: html_notebook
+title: "An animated map showing the countries not represented in Grand Slam tennis (1990-2019)"
+output: 
+  rmdformats::robobook:
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    gallery: false
+    highlight: tango
 ---
 
-```{r}
+**By:** Dr. Chris Martin
+
+**Tools used:** R, R Markdown, `ggplot2`, `gganimate`.
+
+**Techniques used:** animation, mapping.
+
+This notebook produces an animated map which features in my data storytelling project: *The Changing Fortunes of the Richest Countries in Grand Slam Tennis*. You can read the full story [on my website](https://chris-martin-information-design.netlify.app/short-data-stories/tennis).
+
+To produce the chart, I needed data on the women's and men's singles entrants for each Grand Slam tournament since 1990. This came from the excellent [Tennis Abstract](https://github.com/JeffSackmann).
+
+## Setting up the notebook
+
+```{r, warning=FALSE, message=FALSE}
 library(tidyverse)
+
+# for mapping
 library(sf)
-library(gganimate)
-library(transformr)
-```
-
-```{r}
-
-library(showtext)
 library(rmapshaper)
 
-font_add_google("Lato", family = "lato")
+# for animating ggplot2 charts
+library(gganimate)
+library(transformr)
 
+# for using custom fonts
+library(showtext)
+
+# for table formatting
+library(knitr)
+```
+
+## Creating the animated map
+
+```{r, warning=FALSE, message=FALSE, cache=TRUE}
+# -----------------------------------------------------------------------------
+# enable custom fonts
+# -----------------------------------------------------------------------------
+
+font_add_google("Lato", family = "lato")
 showtext_auto()
 
+# -----------------------------------------------------------------------------
+# Read in tennis data from csv (produced by data_clean.Rmd)
+# -----------------------------------------------------------------------------
+
 gs_first_round_gdp <- read_csv("../data/results_gdp.csv")
-gs_first_round_gdp
+
+# output to check columns are as expected
+gs_first_round_gdp %>% 
+  head() %>% 
+  kable()
+
+# -----------------------------------------------------------------------------
+# Read in spatial data for creating a world map
+# -----------------------------------------------------------------------------
 
 countries <- read_sf("../data/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp") %>% 
   rmapshaper::ms_simplify(keep = 0.5) %>% 
   st_transform(crs = "+proj=eqearth")
 
 # -----------------------------------------------------------------------------
-# working
+# Clean the data
 # -----------------------------------------------------------------------------
 
+# create a grid with all combinations of years and countries
+# so we know where data is implicitly missing
 fake_data <- expand_grid(year = 1990:2020,
                          ISO_A3_EH = unique(countries$ISO_A3_EH))
 
+# join the tennis data with the spatial data
 countries_all_years <- countries %>% 
   select(ISO_A3_EH) %>% 
   filter(ISO_A3_EH != 'ATA') %>% 
@@ -41,9 +86,11 @@ countries_all_years <- countries %>%
   left_join(gs_first_round_gdp %>% 
               count(year, country, iso)) %>% 
   mutate(n = if_else(is.na(n), 0L, n),
-         at_gs = if_else(n > 0, TRUE, FALSE)) #%>% 
-  #filter(year <= 1991)
+         at_gs = if_else(n > 0, TRUE, FALSE)) 
   
+# -----------------------------------------------------------------------------
+# Create the map
+# -----------------------------------------------------------------------------
 plot <- countries_all_years %>%  
   
   ggplot() + 
@@ -51,16 +98,13 @@ plot <- countries_all_years %>%
                 group = seq_along(iso)), 
             size = 0) +
   
-    # geom_text(aes(-125, -30), label = "Countries without\nany Grand Slam\nappearances\nshown in blue.", colour = "#374E83", size = 5, lineheight = 0.7) +
-  
-    # c(red, grey)
     scale_fill_manual(values = c("#C94A54", "#DADADA")) +
     scale_colour_manual(values = c("#C94A54", "#DADADA")) +
   
-    # scale_fill_gradient(low = "#1C1F4A", high = "white", trans = "log") +
-    # scale_colour_gradient(low = "#1C1F4A", high = "white", trans = "log") +
-  
+    # simplify plot background
     theme_void() +
+  
+    # position and style the text which shows the year advancing
     theme(plot.background = element_rect(fill = "#E9E9E9", colour = NA),
           legend.position = "none",
           text = element_text(family = "lato"),
@@ -70,100 +114,21 @@ plot <- countries_all_years %>%
                                     margin = margin(0,0,5,0)),
           plot.margin=unit(c(50,30,30,30), 'pt')) +
   
+    # prepare plot object for animation
     transition_time(year) +
-    #ease_aes('cubic-in-out') +
-    #enter_recolor() + exit_recolor() +
     ggtitle('{floor(frame_time)}')
 
 # -----------------------------------------------------------------------------
-# for article
+#  Animate the map
 # -----------------------------------------------------------------------------
-
-# animate(plot, 
-#         fps = 5,  duration = 30,
-#         height = 500, width = 900, units = "px")
 
 animate(plot,
         fps = 5,  duration = 30,
         height = 1440, width = 2560, units = "px")
 
-anim_save("test.gif")
-# -----------------------------------------------------------------------------
-# working
-# -----------------------------------------------------------------------------
-
-
-  
-```
-```{r}
-#   # enter_fade() + exit_fade()
-#   
-# 
-# ggplot(countries) +
-#   geom_sf()
-# 
-# gd_first_round_sf <- gs_first_round_gdp %>% 
-#   #filter(!is.na(gdp_per_capita)) %>% 
-#   distinct(year, country, iso) %>% 
-#   left_join(countries %>% 
-#               select(ISO_A3_EH), 
-#             by = c("iso" = "ISO_A3_EH")) %>% 
-#   st_as_sf()
-#   #visdat::vis_miss() %>% 
-#   #filter(is.na(SOVEREIGNT))
-# 
-#   
-# anim <- ggplot(gd_first_round_sf) + 
-#     geom_sf() +
-#     theme(text = element_text(family = "lato")) +
-#       transition_time(year)
-#   
-# # anim <- anim +
-# #   ggtitle('Now showing {current_frame}',
-# #           subtitle = 'Frame {frame} of {nframes}')
-# 
-# animate(anim, fps = 3)
-# 
-# showtext::showtext_end()
-# 
-# 
-# gd_first_round_sf %>% 
-#   filter(year <= 1991) %>% 
-#   ggplot() + geom_sf() +
-#   transition_time(year)
-# 
-# expand_grid(year = unique(gd_first_round_sf$year), 
-#             country = unique(gd_first_round_sf$country)) %>% 
-#   left_join(gd_first_round_sf) %>% 
-#   st_as_sf() %>% 
-#   mutate(present = if_else(is.na(iso), FALSE, TRUE)) %>% 
-#   ggplot() + geom_sf(mapping = aes(fill = present)) +
-#  transition_states(year)
+anim_save("not_at_gs.gif")
 ```
 
-
-```{r}
-
-# polygons <- gd_first_round_sf[!st_is_empty(gd_first_round_sf), ] %>% 
-#   as("Spatial") %>% 
-#   fortify() %>% 
-#   mutate(id = as.numeric(id))
-# 
-# # %>% 
-# #   
-# 
-# gd_first_round_sf %>% 
-#   mutate(id = row_number()) %>% 
-#   st_drop_geometry() %>% 
-#   left_join(polygons) %>% 
-#   
-#   ggplot() +
-#     geom_polygon(mapping = aes(x = long, y = lat, group = group)) +
-#     transition_states(year)
-# 
-# 
-
-```
 
 
 
