@@ -23,9 +23,12 @@ output:
 
 This notebook produces the static data visualisations which features in my data storytelling project: *The Changing Fortunes of the Richest Countries in Grand Slam Tennis*. You can read the full story [on my website](https://chris-martin-information-design.netlify.app/short-data-stories/tennis).
 
+
 ## A note on my data visualistion workflow
 
-The chart produced in this notebook are 'skeletons' with fairly minimal styling, but all the key structural components in places. The chart are exported from this notebook as svgs. These can are then editted - adding textures, photos, annotations etc. - using graphic design software to create the final versions.
+The chart produced in this notebook are 'skeletons' with fairly minimal styling, but all the key structural components in places. The chart are exported from this notebook as svgs. These can are then edited - adding textures, photos, annotations etc. - using graphic design software to create the final versions.
+
+Some of the charts in this notebook made into the final data story, others where experiments that ultimately did no lead to a final chart. Some charts in this notebook are missing axis labels, titles etc. this is because it made the charts easier to edit further down the line in graphic design software.
 
 ## Setting up the notebook
 
@@ -467,7 +470,9 @@ p <- ggplot(plot_df_1,
 p
 ```
 
-### country affects
+### The most succesful countries in the richest 20%
+
+This section focuses in on the most successful countries: I had noticed that the USA, France and Spain had been very prominent around 2008. The aim here is to see which countries was the most successful at any given point in time.
 
 ```{r}
 # ----------------------------------------------------------------------------
@@ -488,6 +493,8 @@ gs_first_round_gdp %>%
   geom_line(aes(year, perc_appear, colour = country))
 ```
 
+Below I try an alternative approach, where all the other coutries are added into the plot two. To see if this feels like it adds some useful context. It doesn't look like it does.
+
 ```{r}
 # ----------------------------------------------------------------------------
 # Reshape data for plotting
@@ -504,24 +511,29 @@ country_group_counts <- gs_first_round_gdp %>%
 country_group_counts %>% 
   
   ggplot() +
-  geom_line(aes(year, n, group = country, colour = colour)) +
-      scale_y_continuous(expand = c(0,0)) +
+  
+    # core plot
+    geom_line(aes(year, n, group = country, colour = colour)) +
+    
+    # format axis 
+    scale_y_continuous(expand = c(0,0)) +
     scale_x_continuous(expand = c(0,0), 
-                       breaks=c(1990,1995,2000,2005,2010,2015,2019)) +
+                         breaks=c(1990,1995,2000,2005,2010,2015,2019)) +
     coord_cartesian(clip = 'off') +
-  labs(x = NULL, y = NULL) +
-  theme(legend.position = "none",
-        plot.margin = margin(25,25,25,25),
-        panel.grid.minor = element_blank()) 
+    
+    # tidy up plot for editting
+    labs(x = NULL, y = NULL) +
+    theme(legend.position = "none",
+          plot.margin = margin(25,25,25,25),
+          panel.grid.minor = element_blank()) 
 
+# export plot for editting
 ggsave("../images/image_7.svg", units = "mm", width = 525, height = 350)
 
-country_group_counts %>% 
-  filter(iso == "USA")
 ```
-
+For context I wanted to take a look at the other countries that had been in the top 3 over time.
 ```{r}
-
+# identify and explore the top 3 countries in each year
 top_3 <- gs_first_round_gdp %>% 
   count(year, country) %>% 
   arrange(year, desc(n)) %>% 
@@ -531,57 +543,66 @@ top_3 <- gs_first_round_gdp %>%
   
   filter(rank == 1 | rank == 2 | rank == 3)
 
-
+top_3 %>% 
+  scrollable_table()
 
 ```
 
-## Countries outside top twenty percent
+## Which Countries outside the top twenty percent were most successful?
+
+Looking beyond the top 20%, I wanted to see which other countries had been successful.
 
 ```{r}
 # ----------------------------------------------------------------------------
 # Reshape data for plotting
 # ----------------------------------------------------------------------------
+
+# count first round appearance for countries outside top 20%
 gs_entries_the_other_80 <- gs_entries_by_country %>% 
   filter(!top_20_perc) %>% 
   count(year, country, wt = num_first_rd)
 
+# identify implicitly missing data
 grid <- expand_grid(country = unique(gs_entries_the_other_80$country),
                     year = unique(gs_entries_the_other_80$year))
 
+# where a country did no appear for a given year explicitly record 
+# zero first round appearances
 plot_df <- grid %>%
   left_join(gs_entries_the_other_80) %>%
   mutate(n = replace_na(n, 0))
 
 # ----------------------------------------------------------------------------
-# Produce the plots
+# Produce the plot
 # ----------------------------------------------------------------------------
 p <- ggplot(plot_df,
        aes(year, n, group = country)) +
   geom_line()
 
 p
+
+# output as interactive for exploration
 plotly::ggplotly(p)
 
-p <- ggplot(plot_df,
-       aes(year, n, fill = country)) +
-  geom_area()
-
-p
-plotly::ggplotly(p)
 
 ```
+
+As Czechia was a sucessful country, I wanted to check if it was referred to by any other names in the dataset.
 
 ```{r}
-
 gs_entries_by_country %>% 
-  filter(str_detect(str_to_lower(country), "cz"))
-
+  filter(str_detect(str_to_lower(country), "cz")) %>% 
+  distinct(country) %>% 
+  kable()
 ```
+So, now I can focus in on the three most successful countries (outisde the top 20% richest countries).
 
 ```{r}
 # ----------------------------------------------------------------------------
 # Produce the plot
 # ----------------------------------------------------------------------------
+
+# focus on top 3 countries outside the richest 20%
 countries_of_int <- c("Russia", "Argentina", "Czechia")
 
 plot_df %>% 
@@ -589,27 +610,40 @@ plot_df %>%
   mutate(colour = if_else(country %in% countries_of_int,
                           country, "other")) %>% 
   
+  # Czechia moves into the top 20% in 2017 so we don't want the line
+  # to continue
   filter(!(country == "Czechia" & year >= 2017)) %>% 
   
   ggplot(aes(year, n, 
              colour = colour, 
              group = country)) +
+    
+    # core plot
     geom_line() +
   
-    scale_colour_manual(values = c("#A7BCD6", "#35469D", "grey95", "#C94A54")) +
-          scale_y_continuous(expand = c(0,0)) +
+    # colours
+    scale_colour_manual(values = c("#A7BCD6", "#35469D", 
+                                   "grey95", "#C94A54")) +
+  
+    # format axis
+    scale_y_continuous(expand = c(0,0)) +
     scale_x_continuous(expand = c(0,0), 
                        breaks=c(1990,1995,2000,2005,2010,2015,2019)) +
     coord_cartesian(clip = 'off') +
-  labs(x = NULL, y = NULL) +
-  theme(legend.position = "none",
-        plot.margin = margin(25,25,25,25),
-        panel.grid.minor = element_blank()) 
+    
+    # tidy up plots for editting
+    labs(x = NULL, y = NULL) +
+    theme(legend.position = "none",
+          plot.margin = margin(25,25,25,25),
+          panel.grid.minor = element_blank()) 
 
+# export for editting
 ggsave("../images/image_8.svg", units = "mm", width = 525, height = 350)
 ```
 
-## Bottom 50 percent
+## The poorest 50% of countries
+
+In the last part of the data story I flip things on there head, and focus on the poorest 50% of countries. This allowed me to explore the persistent challenges faced by players from poorer countries in making Grand Slam appearance. This section of the notebook works through producing some chart which show these persistent challenges.
 
 ```{r}
 # ----------------------------------------------------------------------------
@@ -618,29 +652,49 @@ ggsave("../images/image_8.svg", units = "mm", width = 525, height = 350)
 bottom_50_perc <- gs_entries_by_country %>% 
   filter(income_decile <= 5)
 
-# num countries with first round appearances 
+# ----------------------------------------------------------------------------
+# Create the plot
+# ----------------------------------------------------------------------------
+
 bottom_50_perc %>% 
+  
+  # only want to count each country once per year
   distinct(year, country) %>% 
   count(year) %>% 
+  
+  
   ggplot() +
+  
+    # core plot
     geom_col(aes(year, n), width = 0.8) +
             scale_y_continuous(expand = expansion(mult = c(0, .1))) +
+    
+    # format axis
     scale_x_continuous(expand = c(0,0), 
                        breaks=c(1990,1995,2000,2005,2010,2015,2019)) +
     coord_cartesian(clip = 'off') +
-  labs(x = NULL, y = NULL) +
-  theme(legend.position = "none",
+    
+    # tidy up plot for editing
+    labs(x = NULL, y = NULL) +
+    theme(legend.position = "none",
         plot.margin = margin(25,25,25,25),
         panel.grid.minor = element_blank()) 
 
+# export plot for editting
 ggsave("../images/image_9.svg", units = "mm", width = 525, height = 350)
 
-# for annotation
+# output data points for annotation
 bottom_50_perc %>% 
   distinct(year, country) %>% 
-  filter(year == 1990 | year == 2013)
+  filter(year == 1990 | year == 2013) %>% 
+  kable()
+```
+```{r}
+# ----------------------------------------------------------------------------
+# Reshape data for plotting
+# ----------------------------------------------------------------------------
 
-# countries from bottom 50 percent with most appearances in first round 1990 - 2019
+# identify the countries from bottom 50 percent with most appearances in first round 1990 - 2019
 top_n <- 5
 
 top_n_countries <- bottom_50_perc %>% 
@@ -655,29 +709,42 @@ bottom_50_perc %>%
 
 plot_df <- bottom_50_perc %>% 
   count(year, country) %>% 
+  
+  # group all countries outside top n together as other
   mutate(country = if_else(country %in% top_n_countries,
                            country,
                            "Other")) %>% 
   group_by(year, country) %>% 
   summarise(n = sum(n))
+
 # ----------------------------------------------------------------------------
 # Produce the plot
 # ----------------------------------------------------------------------------
+
+# total number of first round appearances by bottom 50% countries
 ggplot(plot_df) +
   geom_col(aes(year, n, fill = country))
 
-# for story text
+# output for use in story text
 bottom_50_perc %>% 
   distinct(year, country) %>% 
-  filter(year == 2003)
+  filter(year == 2003) %>% 
+  kable()
 ```
+
+The penultimate chunk of code in this notebook, looks at if countries have moved in and out of the poorest 50% of countries. it is similar to the code chunck and chart above, looking at if countries had moved in and out of the richest 20%. This chart ultimately didn't make into the data story. 
 
 ```{r}
 # ----------------------------------------------------------------------------
 # Reshape data for plotting
 # ----------------------------------------------------------------------------
+
+# count first round appearances by bottom 50% countries
 bottom_50_perc_country_counts <- bottom_50_perc %>% 
+  
   count(year, country, wt = num_first_rd) %>% 
+  
+  # average the counts
   group_by(country) %>% 
   mutate(country_ave_n = mean(n, na.rm = TRUE)) %>% 
   ungroup()
@@ -694,8 +761,7 @@ bottom_50_summary <- bottom_50_perc_country_counts %>%
               )) %>% 
   arrange(desc(country_ave_n))
 
-# bottom_50_perc_country_counts <- bottom_50_perc_country_counts %>% 
-#   left_join(bottom_50_summary)
+
   
 # create a grid to see where countries have moved out of bottom 50 perc
 grid <-  expand_grid(year = unique(bottom_50_perc_country_counts$year),
@@ -703,11 +769,13 @@ grid <-  expand_grid(year = unique(bottom_50_perc_country_counts$year),
 plot_df <- grid %>% 
   left_join(bottom_50_perc_country_counts)
 
-# deciles by year
+# top 50% countries for comparison to bottom 50% countries
 top_50_countries_by_year <- gs_entries_by_country %>% 
   distinct(year, country, income_decile) %>% 
   filter(income_decile > 5)
 
+# check if a country is bottom 50 in a given year
+# returns a logical
 check_top_50 <- function(year, country){
 
   selector <- top_50_countries_by_year$year == year & 
@@ -723,8 +791,10 @@ check_top_50 <- function(year, country){
   }
 }
 
+# a quick function test
 check_top_50(1991, "United States")
 
+# run check on if countries are in the bottom 50% for full dataframe
 plot_df_1 <- plot_df %>% 
   mutate(in_top_50 = map2_lgl(year, country, ~check_top_50(.x,.y)),
          n = if_else(is.na(n) & in_top_50,
@@ -733,28 +803,29 @@ plot_df_1 <- plot_df %>%
          bin_n = cut(n, breaks = c(-Inf, -1e-10,0,1e10, 5, 10, 20, Inf)))
 
 
-# for ordering exploratory plot
+# for ordering countries in the plot
 levels <- rev(bottom_50_summary$country)
+
 # ----------------------------------------------------------------------------
 # Produce the plot
 # ----------------------------------------------------------------------------
+
 ggplot(plot_df_1) +
+  
+  # core plot
   geom_tile(aes(x = year, 
                 y = factor(country, levels = levels),
                 fill = bin_n),
             colour = "#E7E4E5") +
-  labs(x= NULL, y = NULL) +
   
-  coord_equal() +
-  
-  # https://gka.github.io/palettes/#/5|s|ffffff,35469d|ffffe0,ff005e,93003a|1|1
-  scale_fill_manual(values = c("#E7E4E5", "white", '#cfcde7', '#9f9dce', '#6e70b6', '#35469d')) +
-  
-  #scale_fill_gradient(low = "#D6DCE0", high = "#000DA8") +
-  theme_minimal() +
-  theme()
-
-ggsave("test_out.svg")
+    # colours  
+    scale_fill_manual(values = c("#E7E4E5", "white", '#cfcde7', 
+                                 '#9f9dce', '#6e70b6', '#35469d')) +
+    
+    # tidy up plot ahead of editting
+    labs(x= NULL, y = NULL) +
+    coord_equal() +
+    theme_minimal() 
 ```
 
 ```{r}
