@@ -21,7 +21,7 @@ output:
 
 **Source data:** To produce the charts, I needed data on the women's and men's singles entrants for each Grand Slam tournament since 1990. This came from the excellent [Tennis Abstract](https://github.com/JeffSackmann).
 
-This notebook produces the static data visualisations which features in my data storytelling project: *The Changing Fortunes of the Richest Countries in Grand Slam Tennis*. You can read the full story [on my website](https://chris-martin-information-design.netlify.app/short-data-stories/tennis).
+This notebook produces the static data visualisations which features in my data storytelling project: *The Changing Fortunes of the Richest Countries in Grand Slam Tennis*. You can read the full story [on my website](https://chris-martin-information-design.netlify.app/short-data-stories/tennis). This notebook use data processed, clean and explored in [another notebook](https://rpubs.com/chrismartin03/964176).
 
 
 ## A note on my data visualistion workflow
